@@ -47,6 +47,7 @@ For an entry that survives restarts, forward UDP 27016 and have players add `you
 | `UPTIME_STEAM_PORT` | `27015` | UDP, internal. Must differ from the query port. |
 | `UPTIME_PUBLIC_ADDR` | | `host:port` players should record when it differs from what the server sees (port forward, tunnel). Hostnames are resolved to IPv4 at start. |
 | `UPTIME_TUNNEL` | `none` | `playit` or `pinggy`. |
+| `PUID`, `PGID` | `1000`, `1000` | The user and group the server runs as. Files under `/data` are owned by them; set these to match a bind mount's owner. Ignored when the container is started with `--user`. |
 | `UPTIME_UPDATE` | `1` | Update from Steam on every start. `0` runs the installed build. |
 | `UPTIME_UPDATE_CHECK_MINS` | `30` | While running, check Steam for a new server build this often. When one exists and no players are connected, the server saves, exits and restarts on the new build. `0` disables the check; it is also off when `UPTIME_HTTP_PORT` is `0`. |
 | `UPTIME_VALIDATE` | `0` | `1` validates all server files on start. |
@@ -76,7 +77,7 @@ Other UDP tunnels: add a script under `docker/tunnels/` that starts the agent an
 
 ## Data
 
-`/data/server` is the Steam install. `/data/worlds` holds the world file, its `.1` and `.2` backups, and `adminlist.txt`, `bannedlist.txt`, `permittedlist.txt` (one SteamID64 per line). Bind mounts must be writable by uid 1000.
+`/data/server` is the Steam install. `/data/worlds` holds the world file, its `.1` and `.2` backups, and `adminlist.txt`, `bannedlist.txt`, `permittedlist.txt` (one SteamID64 per line). Everything is owned by `PUID:PGID`; for a bind mount, set those to the directory's owner.
 
 Backup:
 

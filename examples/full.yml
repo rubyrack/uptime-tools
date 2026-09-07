@@ -32,6 +32,8 @@ services:
       UPTIME_VALIDATE: "0"
       UPTIME_HTTP_PORT: "9875"
       UPTIME_TUNNEL: none
+      PUID: "1000"                        # owner of /data; match a bind mount's owner
+      PGID: "1000"
     # command: ["--max-players", "8"]
 
 volumes:

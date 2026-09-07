@@ -7,6 +7,20 @@ image_steamcmd=/home/uptime/steamcmd
 log()  { printf 'uptime: %s\n' "$*" >&2; }
 fail() { log "$*"; exit 1; }
 
+# PUID/PGID: when started as root, make the `uptime` user those ids, give it
+# the data and its home, and re-run this script as that user.
+if [ "$(id -u)" = "0" ]; then
+    puid=${PUID:-1000}
+    pgid=${PGID:-1000}
+    case "$puid$pgid" in *[!0-9]*) fail "PUID and PGID must be numeric" ;; esac
+    [ "$(id -g uptime)" = "$pgid" ] || groupmod -o -g "$pgid" uptime
+    [ "$(id -u uptime)" = "$puid" ] || usermod -o -u "$puid" -g "$pgid" uptime
+    chown -R uptime:uptime /home/uptime
+    [ -d "${UPTIME_DATA_DIR:-/data}" ] && chown -R uptime:uptime "${UPTIME_DATA_DIR:-/data}"
+    log "running as uid $puid gid $pgid"
+    exec setpriv --reuid=uptime --regid=uptime --init-groups env HOME=/home/uptime USER=uptime "$0" "$@"
+fi
+
 installed_build() {
     grep -o '"buildid"[[:space:]]*"[0-9]*"' "$install/steamapps/appmanifest_$app_id.acf" 2>/dev/null \
         | head -n 1 | grep -o '[0-9][0-9]*' || true

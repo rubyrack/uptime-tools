@@ -21,16 +21,19 @@ RUN curl -fsSL --retry 3 -o /usr/local/bin/playit \
 
 RUN useradd --create-home --home-dir /home/uptime --shell /bin/sh --uid 1000 uptime \
  && mkdir -p /data && chown uptime:uptime /data
-USER uptime
 WORKDIR /home/uptime
 
 RUN mkdir -p steamcmd \
  && curl -fsSL --retry 3 https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz \
-    | tar -xz -C steamcmd
+    | tar -xz -C steamcmd \
+ && chown -R uptime:uptime steamcmd
 
 COPY --chown=uptime:uptime entrypoint.sh /home/uptime/entrypoint.sh
 COPY --chown=uptime:uptime tunnels/ /home/uptime/tunnels/
 RUN chmod 0755 /home/uptime/entrypoint.sh /home/uptime/tunnels/*.sh
+
+# Starts as root so the entrypoint can apply PUID/PGID, then drops to `uptime`.
+# `--user` still works: the entrypoint skips that step when it is not root.
 
 ENV SteamAppId=4813880 \
     HOME=/home/uptime \
