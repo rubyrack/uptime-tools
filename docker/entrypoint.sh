@@ -72,6 +72,7 @@ make_access_lists() {
 # user and hands the egg's startup line over in STARTUP with {{VAR}} holes.
 if [ -n "${STARTUP:-}" ] && [ -d /home/container ]; then
     cd /home/container
+    [ -w . ] || fail "/home/container is not writable by uid $(id -u); the server directory must belong to the user Wings runs containers as"
     install=/home/container
     steamcmd=./steamcmd/steamcmd.sh
     if [ ! -x "$steamcmd" ]; then

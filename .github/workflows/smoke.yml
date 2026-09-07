@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - run: docker build -t uptime-server:smoke docker
 
@@ -75,16 +75,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - run: docker build -t uptime-server:smoke docker
 
       - name: Start with the egg's startup line and no install
         run: |
-          docker volume create panel-data
-          docker run --rm -v panel-data:/home/container alpine chown 988:988 /home/container
+          # Wings bind-mounts a directory it owns; a named volume would reset
+          # the ownership of an empty root on mount.
+          mkdir -p "$RUNNER_TEMP/panel"
+          sudo chown 988:988 "$RUNNER_TEMP/panel"
           docker run -d --name panel --user 988:988 \
-            -v panel-data:/home/container -w /home/container \
+            -v "$RUNNER_TEMP/panel":/home/container -w /home/container \
             -e HOME=/home/container -e USER=container \
             -e STARTUP="$(jq -r .startup pterodactyl/egg-uptime.json)" \
             -e SERVER_PORT=27016 -e AUTO_UPDATE=1 \
@@ -114,4 +116,4 @@ jobs:
             sleep 5
           done
           [ "$(docker inspect -f '{{.State.ExitCode}}' panel)" = "0" ]
-          docker run --rm -v panel-data:/home/container alpine test -s /home/container/worlds/main.save
+          sudo test -s "$RUNNER_TEMP/panel/worlds/main.save"
