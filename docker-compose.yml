@@ -14,7 +14,7 @@ services:
     volumes:
       - uptime-data:/data
     environment:
-      UPTIME_PASSWORD: change-me
+      UPTIME_PASSWORD: change-me   # remove the line for an open server
       UPTIME_NAME: My Datacenter
 
 volumes:

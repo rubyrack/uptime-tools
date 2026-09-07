@@ -15,7 +15,7 @@ services:
     volumes:
       - uptime-data:/data
     environment:
-      UPTIME_PASSWORD: change-me
+      UPTIME_PASSWORD: change-me   # optional; without it the server is open
       UPTIME_NAME: My Datacenter
       UPTIME_WORLD: worlds/main.save
       UPTIME_SCENARIO: garage-to-glory
