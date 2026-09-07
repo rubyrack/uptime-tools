@@ -6,6 +6,11 @@ services:
     container_name: uptime
     restart: unless-stopped
     stop_grace_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
     volumes:
       - uptime-data:/data
     environment:

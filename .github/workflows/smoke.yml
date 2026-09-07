@@ -6,10 +6,6 @@ on:
     paths:
       - "docker/**"
       - ".github/workflows/smoke.yml"
-  pull_request:
-    paths:
-      - "docker/**"
-      - ".github/workflows/smoke.yml"
   workflow_dispatch:
 
 jobs:

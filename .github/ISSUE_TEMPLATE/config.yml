@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Dedicated server documentation
+    url: https://wiki.playuptime.com/multiplayer/dedicated-server
+    about: Setup, networking, access control and troubleshooting.

@@ -1,0 +1,17 @@
+name: Feature request
+description: Something the image or the egg should do.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: The hosting setup this would help with.
+    validations:
+      required: true

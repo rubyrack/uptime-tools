@@ -3,6 +3,11 @@ services:
     image: ghcr.io/rubyrackgames/uptime-server:latest
     restart: unless-stopped
     stop_grace_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
     ports:
       - "27016:27016/udp"
     volumes:
@@ -15,6 +20,11 @@ services:
     image: ghcr.io/rubyrackgames/uptime-server:latest
     restart: unless-stopped
     stop_grace_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
     ports:
       - "27018:27018/udp"
     volumes:

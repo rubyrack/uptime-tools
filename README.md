@@ -47,6 +47,7 @@ For an entry that survives restarts, forward UDP 27016 and have players add `you
 | `UPTIME_PUBLIC_ADDR` | | `host:port` players should record when it differs from what the server sees (port forward, tunnel). Hostnames are resolved to IPv4 at start. |
 | `UPTIME_TUNNEL` | `none` | `playit` or `pinggy`. |
 | `UPTIME_UPDATE` | `1` | Update from Steam on every start. `0` runs the installed build. |
+| `UPTIME_UPDATE_CHECK_MINS` | `30` | While running, check Steam for a new server build this often. When one exists and no players are connected, the server saves, exits and restarts on the new build. `0` disables the check; it is also off when `UPTIME_HTTP_PORT` is `0`. |
 | `UPTIME_VALIDATE` | `0` | `1` validates all server files on start. |
 | `UPTIME_HTTP_PORT` | `9875` | Read-only API on loopback, used by the healthcheck. `0` disables it. |
 
@@ -75,6 +76,20 @@ Other UDP tunnels: add a script under `docker/tunnels/` that starts the agent an
 ## Data
 
 `/data/server` is the Steam install. `/data/worlds` holds the world file, its `.1` and `.2` backups, and `adminlist.txt`, `bannedlist.txt`, `permittedlist.txt` (one SteamID64 per line). Bind mounts must be writable by uid 1000.
+
+Backup:
+
+```sh
+docker run --rm -v uptime-data:/data -v "$PWD":/backup alpine tar czf /backup/uptime-worlds.tgz -C /data worlds
+```
+
+Stop the container first for a consistent copy, or take the `.1` file, which is the previous completed save.
+
+## Updates
+
+A game update changes the version players must match. With the defaults the container updates the server on every start and, every 30 minutes, asks Steam whether a new build exists. When one does and nobody is connected, the server saves and exits, and the container's restart policy brings it back on the new build. While players are on, it waits and checks again. Set `UPTIME_UPDATE_CHECK_MINS=0` to restart on your own schedule instead.
+
+The image itself changes rarely (SteamCMD, base image, tunnel agents); `docker compose pull` now and then is enough.
 
 ## Pterodactyl
 

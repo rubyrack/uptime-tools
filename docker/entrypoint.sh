@@ -9,6 +9,25 @@ app_id=5053430
 log()  { printf 'uptime: %s\n' "$*" >&2; }
 fail() { log "$*"; exit 1; }
 
+installed_build() {
+    grep -o '"buildid"[[:space:]]*"[0-9]*"' "$install/steamapps/appmanifest_$app_id.acf" 2>/dev/null \
+        | head -n 1 | grep -o '[0-9][0-9]*' || true
+}
+
+steam_build() {
+    "$steamcmd" +login anonymous +app_info_update 1 +app_info_print "$app_id" +quit 2>/dev/null \
+        | grep -o '"buildid"[[:space:]]*"[0-9]*"' | head -n 1 | grep -o '[0-9][0-9]*' || true
+}
+
+# Connected players, from the runner's loopback API. The first request wakes
+# its read model, the second reads a fresh one. Empty when unknown.
+players_connected() {
+    url="http://127.0.0.1:$http_port/api/v1/world"
+    curl -fsS -m 5 "$url" >/dev/null 2>&1 || return 0
+    sleep 3
+    curl -fsS -m 5 "$url" 2>/dev/null | grep -o '"sessions_connected":[0-9]*' | grep -o '[0-9]*$' || true
+}
+
 password=${UPTIME_PASSWORD:-}
 if [ -z "$password" ] && [ -n "${UPTIME_PASSWORD_FILE:-}" ]; then
     [ -r "$UPTIME_PASSWORD_FILE" ] || fail "UPTIME_PASSWORD_FILE is not readable: $UPTIME_PASSWORD_FILE"
@@ -26,7 +45,8 @@ if [ "${UPTIME_UPDATE:-1}" = "1" ]; then
             +app_update 1007 $validate \
             +app_update "$app_id" $validate \
             +quit; then
-        log "server is up to date"
+        build=$(installed_build)
+        log "server is up to date${build:+, build $build}"
     elif [ -x "$install/uptime-server" ]; then
         log "Steam update failed, starting the installed build"
     else
@@ -102,6 +122,34 @@ http_port=${UPTIME_HTTP_PORT:-9875}
 [ "${UPTIME_PUBLIC:-0}" = "1" ]    && set -- --public "$@"
 [ "${UPTIME_HARD:-0}" = "1" ]      && set -- --hard "$@"
 
-log "starting"
 cd "$install"
-exec ./start_server.sh "$@"
+check_secs=$(( ${UPTIME_UPDATE_CHECK_MINS:-30} * 60 ))
+[ -n "${UPTIME_UPDATE_CHECK_SECS:-}" ] && check_secs=$UPTIME_UPDATE_CHECK_SECS
+if [ "${UPTIME_UPDATE:-1}" != "1" ] || [ "$check_secs" -le 0 ] || [ "$http_port" = "0" ]; then
+    log "starting"
+    exec ./start_server.sh "$@"
+fi
+
+# When Steam has a new build and nobody is connected, stop the runner (it
+# saves on SIGTERM); the restart policy brings the container back through
+# the update above. With players on, check again next interval.
+log "starting, checking Steam for a new build every $check_secs s"
+./start_server.sh "$@" &
+runner=$!
+trap 'kill -TERM "$runner" 2>/dev/null' TERM INT
+current=$(installed_build)
+while kill -0 "$runner" 2>/dev/null; do
+    sleep "$check_secs" &
+    wait $! || true
+    kill -0 "$runner" 2>/dev/null || break
+    latest=$(steam_build)
+    [ -n "$latest" ] && [ -n "$current" ] && [ "$latest" != "$current" ] || continue
+    players=$(players_connected)
+    if [ "$players" = "0" ]; then
+        log "Steam has build $latest (running $current), no players connected, restarting to update"
+        kill -TERM "$runner" 2>/dev/null
+        break
+    fi
+    log "Steam has build $latest (running $current), ${players:-unknown} player(s) connected, waiting"
+done
+wait "$runner" || exit $?
