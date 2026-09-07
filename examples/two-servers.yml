@@ -1,0 +1,31 @@
+services:
+  main:
+    image: ghcr.io/rubyrackgames/uptime-server:latest
+    restart: unless-stopped
+    stop_grace_period: 60s
+    ports:
+      - "27016:27016/udp"
+    volumes:
+      - main-data:/data
+    environment:
+      UPTIME_PASSWORD: change-me
+      UPTIME_NAME: Main Datacenter
+
+  hard:
+    image: ghcr.io/rubyrackgames/uptime-server:latest
+    restart: unless-stopped
+    stop_grace_period: 60s
+    ports:
+      - "27018:27018/udp"
+    volumes:
+      - hard-data:/data
+    environment:
+      UPTIME_PASSWORD: change-me-too
+      UPTIME_NAME: Hard Mode Datacenter
+      UPTIME_HARD: "1"
+      UPTIME_QUERY_PORT: "27018"
+      UPTIME_STEAM_PORT: "27017"
+
+volumes:
+  main-data:
+  hard-data:

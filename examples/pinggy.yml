@@ -1,0 +1,18 @@
+# Pinggy UDP tunnel. The address is assigned at start and printed in the log
+# ("pinggy public address"); it changes on every start without a Pro token.
+services:
+  uptime:
+    image: ghcr.io/rubyrackgames/uptime-server:latest
+    container_name: uptime
+    restart: unless-stopped
+    stop_grace_period: 60s
+    volumes:
+      - uptime-data:/data
+    environment:
+      UPTIME_PASSWORD: change-me
+      UPTIME_NAME: My Datacenter
+      UPTIME_TUNNEL: pinggy
+      # PINGGY_TOKEN: your-token
+
+volumes:
+  uptime-data:

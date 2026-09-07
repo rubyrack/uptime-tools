@@ -1,0 +1,74 @@
+name: smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docker/**"
+      - ".github/workflows/smoke.yml"
+  pull_request:
+    paths:
+      - "docker/**"
+      - ".github/workflows/smoke.yml"
+  workflow_dispatch:
+
+jobs:
+  boot:
+    runs-on: [self-hosted, docker]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: docker build -t uptime-server:smoke docker
+
+      - name: Start
+        run: |
+          docker volume create smoke-data
+          docker run -d --name smoke \
+            -v smoke-data:/data \
+            -e UPTIME_PASSWORD=smoke-test-1 \
+            -e UPTIME_NAME="CI smoke" \
+            -e UPTIME_PUBLIC_ADDR=localhost:27016 \
+            uptime-server:smoke
+
+      - name: Wait for the Steam link
+        run: |
+          for i in $(seq 1 120); do
+            docker logs smoke 2>&1 | grep -q '^\[server\] game-server SteamID: [0-9]' && break
+            if [ "$(docker inspect -f '{{.State.Running}}' smoke)" != "true" ]; then
+              docker logs smoke; exit 1
+            fi
+            sleep 5
+          done
+          docker logs smoke 2>&1 | tail -40
+          docker logs smoke 2>&1 | grep -q 'game-server link up'
+          docker logs smoke 2>&1 | grep -q '^\[server\] game-server SteamID: [0-9]'
+          docker logs smoke 2>&1 | grep -q 'localhost:27016 -> 127.0.0.1:27016'
+
+      - name: Healthcheck
+        run: |
+          for i in $(seq 1 24); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' smoke)
+            [ "$status" = "healthy" ] && break
+            sleep 5
+          done
+          [ "$status" = "healthy" ] || { docker inspect -f '{{json .State.Health}}' smoke; exit 1; }
+
+      - name: Stop saves and exits 0
+        run: |
+          docker stop -t 60 smoke
+          docker logs smoke 2>&1 | tail -20
+          [ "$(docker inspect -f '{{.State.ExitCode}}' smoke)" = "0" ]
+          docker run --rm -v smoke-data:/data alpine test -s /data/worlds/main.save
+
+      - name: Restart loads the world
+        run: |
+          docker rm smoke
+          docker run -d --name smoke -v smoke-data:/data -e UPTIME_PASSWORD=smoke-test-1 uptime-server:smoke
+          for i in $(seq 1 60); do
+            docker logs smoke 2>&1 | grep -q 'world loaded from' && break
+            sleep 5
+          done
+          docker logs smoke 2>&1 | grep 'world loaded from' || { docker logs smoke; exit 1; }
+          docker stop -t 60 smoke
+          [ "$(docker inspect -f '{{.State.ExitCode}}' smoke)" = "0" ]

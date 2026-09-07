@@ -1,0 +1,20 @@
+# playit.gg tunnel for hosts that cannot forward a UDP port.
+# Create an agent and a UDP tunnel to 127.0.0.1:27016 in the playit dashboard,
+# then fill in the secret key and the address playit shows.
+services:
+  uptime:
+    image: ghcr.io/rubyrackgames/uptime-server:latest
+    container_name: uptime
+    restart: unless-stopped
+    stop_grace_period: 60s
+    volumes:
+      - uptime-data:/data
+    environment:
+      UPTIME_PASSWORD: change-me
+      UPTIME_NAME: My Datacenter
+      UPTIME_TUNNEL: playit
+      PLAYIT_SECRET_KEY: your-agent-secret
+      UPTIME_PUBLIC_ADDR: something.gl.at.ply.gg:12345
+
+volumes:
+  uptime-data:

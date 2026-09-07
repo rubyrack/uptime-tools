@@ -1,0 +1,171 @@
+{
+    "meta": {
+        "version": "PTDL_v2",
+        "update_url": null
+    },
+    "exported_at": "2026-09-07T00:00:00+00:00",
+    "name": "Uptime Dedicated Server",
+    "author": "rubyrack@users.noreply.github.com",
+    "description": "Uptime dedicated server, installed from Steam (app 5053430) with anonymous SteamCMD. The primary allocation is the UDP query port.",
+    "features": ["steam_disk_space"],
+    "docker_images": {
+        "SteamCMD (Debian)": "ghcr.io/parkervcp/steamcmd:debian"
+    },
+    "file_denylist": [],
+    "startup": "./start_server.sh --world {{UPTIME_WORLD}} --scenario {{UPTIME_SCENARIO}} --name \"{{SERVER_NAME}}\" --password \"{{UPTIME_PASSWORD}}\" --max-players {{MAX_PLAYERS}} --autosave-secs {{AUTOSAVE_SECS}} --query-port {{SERVER_PORT}} --steam-port {{STEAM_PORT}} {{PUBLIC_ADDR_FLAG}} {{PUBLIC_FLAG}} {{HARD_FLAG}} {{EXTRA_ARGS}}",
+    "config": {
+        "files": "{}",
+        "startup": "{\"done\":\"game-server link up\"}",
+        "logs": "{}",
+        "stop": "^C"
+    },
+    "scripts": {
+        "installation": {
+            "script": "#!/bin/bash\nset -euo pipefail\n\n[[ \"$(uname -m)\" == \"x86_64\" ]] || { echo \"x86_64 only; this node is $(uname -m)\" >&2; exit 1; }\n\napt-get update\napt-get install -y --no-install-recommends ca-certificates curl tar lib32gcc-s1 lib32stdc++6\n\nmkdir -p /mnt/server/steamcmd /mnt/server/worlds /mnt/server/.steam/sdk64\ncd /mnt/server/steamcmd\nif [[ ! -x ./steamcmd.sh ]]; then\n    curl --fail --location --retry 3 --connect-timeout 30 --max-time 300 \\\n        https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz \\\n        -o /tmp/steamcmd_linux.tar.gz\n    tar -xzf /tmp/steamcmd_linux.tar.gz -C /mnt/server/steamcmd\nfi\n\n./steamcmd.sh +force_install_dir /mnt/server +login anonymous \\\n    +app_update 1007 validate \\\n    +app_update 5053430 validate \\\n    +quit\n\n[[ -s /mnt/server/uptime-server && -s /mnt/server/start_server.sh ]] || {\n    echo \"download failed: uptime-server or start_server.sh missing\" >&2\n    exit 1\n}\nchmod +x /mnt/server/uptime-server /mnt/server/start_server.sh\n\nfor candidate in /mnt/server/linux64/steamclient.so /mnt/server/steamcmd/linux64/steamclient.so; do\n    if [[ -s \"$candidate\" ]]; then\n        cp -- \"$candidate\" /mnt/server/.steam/sdk64/steamclient.so\n        break\n    fi\ndone\n[[ -s /mnt/server/.steam/sdk64/steamclient.so ]] || { echo \"steamclient.so not found\" >&2; exit 1; }\n\nfor f in adminlist.txt bannedlist.txt permittedlist.txt; do\n    [[ -e \"/mnt/server/worlds/$f\" ]] || : > \"/mnt/server/worlds/$f\"\ndone\n\necho \"installed\"\n",
+            "container": "ghcr.io/parkervcp/installers:debian",
+            "entrypoint": "bash"
+        }
+    },
+    "variables": [
+        {
+            "name": "Server Name",
+            "description": "Shown in server lists. Must not contain the password.",
+            "env_variable": "SERVER_NAME",
+            "default_value": "My Datacenter",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:80",
+            "field_type": "text"
+        },
+        {
+            "name": "Join Password",
+            "description": "5 to 128 characters.",
+            "env_variable": "UPTIME_PASSWORD",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|min:5|max:128",
+            "field_type": "text"
+        },
+        {
+            "name": "World File",
+            "description": "Path below worlds/. Loaded when it exists, created from the scenario when it does not.",
+            "env_variable": "UPTIME_WORLD",
+            "default_value": "worlds/main.save",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:240|regex:/^worlds\\/[A-Za-z0-9_.-]+\\.save$/",
+            "field_type": "text"
+        },
+        {
+            "name": "Scenario",
+            "description": "Used only when the world file is created. ./uptime-server --list-scenarios prints the ids.",
+            "env_variable": "UPTIME_SCENARIO",
+            "default_value": "garage-to-glory",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:80|regex:/^[A-Za-z0-9_-]+$/",
+            "field_type": "text"
+        },
+        {
+            "name": "Maximum Players",
+            "description": "0 for no cap.",
+            "env_variable": "MAX_PLAYERS",
+            "default_value": "4",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|min:0|max:1000",
+            "field_type": "text"
+        },
+        {
+            "name": "Autosave Interval (seconds)",
+            "description": "0 saves only on stop.",
+            "env_variable": "AUTOSAVE_SECS",
+            "default_value": "300",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|min:0|max:86400",
+            "field_type": "text"
+        },
+        {
+            "name": "Steam Game-Server Port",
+            "description": "UDP, internal. Needs no allocation; must differ from the query port.",
+            "env_variable": "STEAM_PORT",
+            "default_value": "27015",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:1024,65535",
+            "field_type": "text"
+        },
+        {
+            "name": "Advertised Address",
+            "description": "--public-addr IP:PORT when players reach the server at a different address or port than the node's. IPv4 only.",
+            "env_variable": "PUBLIC_ADDR_FLAG",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:300|regex:/^(--public-addr [0-9]{1,3}(\\.[0-9]{1,3}){3}:[0-9]{1,5})?$/",
+            "field_type": "text"
+        },
+        {
+            "name": "Public Listing",
+            "description": "--public to list the server in the game's Internet tab.",
+            "env_variable": "PUBLIC_FLAG",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|in:--public",
+            "field_type": "text"
+        },
+        {
+            "name": "Hard Mode",
+            "description": "--hard to create a new world in hard mode. Existing worlds keep their mode.",
+            "env_variable": "HARD_FLAG",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|in:--hard",
+            "field_type": "text"
+        },
+        {
+            "name": "Extra Arguments",
+            "description": "Appended last. Example: --seed 12345. Do not pass --bind, --port, --host-token or --http-port.",
+            "env_variable": "EXTRA_ARGS",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:400",
+            "field_type": "text"
+        },
+        {
+            "name": "Update On Start",
+            "description": "1 runs SteamCMD before every start.",
+            "env_variable": "AUTO_UPDATE",
+            "default_value": "1",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|in:0,1",
+            "field_type": "text"
+        },
+        {
+            "name": "Steam App ID",
+            "description": "Do not change.",
+            "env_variable": "SRCDS_APPID",
+            "default_value": "5053430",
+            "user_viewable": true,
+            "user_editable": false,
+            "rules": "required|in:5053430",
+            "field_type": "text"
+        },
+        {
+            "name": "Steam Account",
+            "description": "Empty for anonymous login.",
+            "env_variable": "STEAM_USER",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "nullable|string|max:0",
+            "field_type": "text"
+        }
+    ]
+}

@@ -1,0 +1,16 @@
+services:
+  uptime:
+    image: ghcr.io/rubyrackgames/uptime-server:latest
+    container_name: uptime
+    restart: unless-stopped
+    stop_grace_period: 60s
+    ports:
+      - "27016:27016/udp"
+    volumes:
+      - uptime-data:/data
+    environment:
+      UPTIME_PASSWORD: change-me
+      UPTIME_NAME: My Datacenter
+
+volumes:
+  uptime-data:

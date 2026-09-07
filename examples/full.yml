@@ -1,0 +1,32 @@
+# Every variable with its default.
+services:
+  uptime:
+    image: ghcr.io/rubyrackgames/uptime-server:latest
+    container_name: uptime
+    restart: unless-stopped
+    stop_grace_period: 60s
+    ports:
+      - "27016:27016/udp"
+    volumes:
+      - uptime-data:/data
+    environment:
+      UPTIME_PASSWORD: change-me
+      UPTIME_NAME: My Datacenter
+      UPTIME_WORLD: worlds/main.save
+      UPTIME_SCENARIO: garage-to-glory
+      UPTIME_MAX_PLAYERS: "4"
+      UPTIME_AUTOSAVE_SECS: "300"
+      UPTIME_HARD: "0"
+      UPTIME_PUBLIC: "0"
+      # UPTIME_SEED: "12345"
+      UPTIME_QUERY_PORT: "27016"
+      UPTIME_STEAM_PORT: "27015"
+      # UPTIME_PUBLIC_ADDR: 203.0.113.7:27020
+      UPTIME_UPDATE: "1"
+      UPTIME_VALIDATE: "0"
+      UPTIME_HTTP_PORT: "9875"
+      UPTIME_TUNNEL: none
+    # command: ["--max-players", "8"]
+
+volumes:
+  uptime-data:
