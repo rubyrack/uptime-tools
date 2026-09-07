@@ -17,7 +17,7 @@ docker run -d --name uptime \
   ghcr.io/rubyrack/uptime-server
 ```
 
-`docker logs -f uptime` shows the download, then `[steam] game-server link up`, then a few seconds later:
+Leave `UPTIME_PASSWORD` out for an open server. `docker logs -f uptime` shows the download, then `[steam] game-server link up`, then a few seconds later:
 
 ```text
 [server] game-server SteamID: 90292215011180567 (players reach this world over Steam's relay by this id)
@@ -33,7 +33,7 @@ For an entry that survives restarts, forward UDP 27016 and have players add `you
 
 | Variable | Default | |
 |---|---|---|
-| `UPTIME_PASSWORD` | required | Join password, 5 to 128 characters. `UPTIME_PASSWORD_FILE` reads it from a file. |
+| `UPTIME_PASSWORD` | none | Join password, 5 to 128 characters. `UPTIME_PASSWORD_FILE` reads it from a file. Unset means an open server: anyone with the address or the SteamID can join, and the log says so at start. |
 | `UPTIME_NAME` | `Uptime server` | |
 | `UPTIME_WORLD` | `worlds/main.save` | Under `/data`. Created from the scenario on first start. |
 | `UPTIME_SCENARIO` | `garage-to-glory` | Used only when the world is created. `garage-to-glory`, `arm-race`, `sandbox`. |

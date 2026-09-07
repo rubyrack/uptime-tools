@@ -100,7 +100,7 @@ if [ -z "$password" ] && [ -n "${UPTIME_PASSWORD_FILE:-}" ]; then
     [ -r "$UPTIME_PASSWORD_FILE" ] || fail "UPTIME_PASSWORD_FILE is not readable: $UPTIME_PASSWORD_FILE"
     password=$(head -n 1 "$UPTIME_PASSWORD_FILE")
 fi
-[ -n "$password" ] || fail "UPTIME_PASSWORD (or UPTIME_PASSWORD_FILE) is required"
+[ -n "$password" ] || log "no UPTIME_PASSWORD: this is an open server, anyone with the address or the SteamID can join"
 
 mkdir -p "$install" "$data/worlds"
 if [ "${UPTIME_UPDATE:-1}" = "1" ]; then
@@ -148,12 +148,12 @@ set -- \
     --world "$world" \
     --scenario "${UPTIME_SCENARIO:-garage-to-glory}" \
     --name "${UPTIME_NAME:-Uptime server}" \
-    --password "$password" \
     --query-port "$query_port" \
     --steam-port "${UPTIME_STEAM_PORT:-27015}" \
     "$@"
 
 http_port=${UPTIME_HTTP_PORT:-9875}
+[ -n "$password" ]                 && set -- --password "$password" "$@"
 [ "$http_port" != "0" ]            && set -- --http-port "$http_port" "$@"
 [ -n "${UPTIME_MAX_PLAYERS:-}" ]   && set -- --max-players "$UPTIME_MAX_PLAYERS" "$@"
 [ -n "${UPTIME_AUTOSAVE_SECS:-}" ] && set -- --autosave-secs "$UPTIME_AUTOSAVE_SECS" "$@"

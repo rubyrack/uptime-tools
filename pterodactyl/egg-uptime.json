@@ -39,12 +39,12 @@
         },
         {
             "name": "Join Password",
-            "description": "5 to 128 characters.",
+            "description": "5 to 128 characters. Leave empty for an open server (Uptime 0.1.63 or newer; older servers refuse an empty password).",
             "env_variable": "UPTIME_PASSWORD",
             "default_value": "",
             "user_viewable": true,
             "user_editable": true,
-            "rules": "required|string|min:5|max:128",
+            "rules": "nullable|string|min:5|max:128",
             "field_type": "text"
         },
         {
