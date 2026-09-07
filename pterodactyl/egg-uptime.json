@@ -6,13 +6,13 @@
     "exported_at": "2026-09-07T00:00:00+00:00",
     "name": "Uptime Dedicated Server",
     "author": "rubyrack@users.noreply.github.com",
-    "description": "Uptime dedicated server, installed from Steam (app 5053430) with anonymous SteamCMD. The primary allocation is the UDP query port.",
+    "description": "Uptime dedicated server on the official image. Installed from Steam (app 5053430) with anonymous SteamCMD. The primary allocation is the UDP query port.",
     "features": ["steam_disk_space"],
     "docker_images": {
-        "SteamCMD (Debian)": "ghcr.io/parkervcp/steamcmd:debian"
+        "Uptime": "ghcr.io/rubyrack/uptime-server:latest"
     },
     "file_denylist": [],
-    "startup": "./start_server.sh --world {{UPTIME_WORLD}} --scenario {{UPTIME_SCENARIO}} --name \"{{SERVER_NAME}}\" --password \"{{UPTIME_PASSWORD}}\" --max-players {{MAX_PLAYERS}} --autosave-secs {{AUTOSAVE_SECS}} --query-port {{SERVER_PORT}} --steam-port {{STEAM_PORT}} {{PUBLIC_ADDR_FLAG}} {{PUBLIC_FLAG}} {{HARD_FLAG}} {{EXTRA_ARGS}}",
+    "startup": "./start_server.sh --world {{UPTIME_WORLD}} --scenario {{UPTIME_SCENARIO}} --name \"{{SERVER_NAME}}\" --password \"{{UPTIME_PASSWORD}}\" --max-players {{MAX_PLAYERS}} --autosave-secs {{AUTOSAVE_SECS}} --query-port {{SERVER_PORT}} --steam-port {{STEAM_PORT}} {{SITE_FLAG}} {{PUBLIC_ADDR_FLAG}} {{PUBLIC_FLAG}} {{HARD_FLAG}} {{EXTRA_ARGS}}",
     "config": {
         "files": "{}",
         "startup": "{\"done\":\"game-server link up\"}",
@@ -21,7 +21,7 @@
     },
     "scripts": {
         "installation": {
-            "script": "#!/bin/bash\nset -euo pipefail\n\n[[ \"$(uname -m)\" == \"x86_64\" ]] || { echo \"x86_64 only; this node is $(uname -m)\" >&2; exit 1; }\n\napt-get update\napt-get install -y --no-install-recommends ca-certificates curl tar lib32gcc-s1 lib32stdc++6\n\nmkdir -p /mnt/server/steamcmd /mnt/server/worlds /mnt/server/.steam/sdk64\ncd /mnt/server/steamcmd\nif [[ ! -x ./steamcmd.sh ]]; then\n    curl --fail --location --retry 3 --connect-timeout 30 --max-time 300 \\\n        https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz \\\n        -o /tmp/steamcmd_linux.tar.gz\n    tar -xzf /tmp/steamcmd_linux.tar.gz -C /mnt/server/steamcmd\nfi\n\n./steamcmd.sh +force_install_dir /mnt/server +login anonymous \\\n    +app_update 1007 validate \\\n    +app_update 5053430 validate \\\n    +quit\n\n[[ -s /mnt/server/uptime-server && -s /mnt/server/start_server.sh ]] || {\n    echo \"download failed: uptime-server or start_server.sh missing\" >&2\n    exit 1\n}\nchmod +x /mnt/server/uptime-server /mnt/server/start_server.sh\n\nfor candidate in /mnt/server/linux64/steamclient.so /mnt/server/steamcmd/linux64/steamclient.so; do\n    if [[ -s \"$candidate\" ]]; then\n        cp -- \"$candidate\" /mnt/server/.steam/sdk64/steamclient.so\n        break\n    fi\ndone\n[[ -s /mnt/server/.steam/sdk64/steamclient.so ]] || { echo \"steamclient.so not found\" >&2; exit 1; }\n\nfor f in adminlist.txt bannedlist.txt permittedlist.txt; do\n    [[ -e \"/mnt/server/worlds/$f\" ]] || : > \"/mnt/server/worlds/$f\"\ndone\n\necho \"installed\"\n",
+            "script": "#!/bin/bash\nset -euo pipefail\n\n[[ \"$(uname -m)\" == \"x86_64\" ]] || { echo \"x86_64 only; this node is $(uname -m)\" >&2; exit 1; }\n\napt-get update\napt-get install -y --no-install-recommends ca-certificates curl tar lib32gcc-s1 lib32stdc++6\n\nmkdir -p /mnt/server/steamcmd /mnt/server/worlds /mnt/server/.steam/sdk64\ncd /mnt/server/steamcmd\nif [[ ! -x ./steamcmd.sh ]]; then\n    curl --fail --location --retry 3 --connect-timeout 30 --max-time 300 \\\n        https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz \\\n        -o /tmp/steamcmd_linux.tar.gz\n    tar -xzf /tmp/steamcmd_linux.tar.gz -C /mnt/server/steamcmd\nfi\n\n./steamcmd.sh +force_install_dir /mnt/server +login anonymous \\\n    +app_update 1007 validate \\\n    +app_update 5053430 validate \\\n    +quit || true\n\n[[ -s /mnt/server/uptime-server && -s /mnt/server/start_server.sh ]] || {\n    echo \"download failed: uptime-server or start_server.sh missing\" >&2\n    exit 1\n}\nchmod +x /mnt/server/uptime-server /mnt/server/start_server.sh\n\nfor candidate in /mnt/server/linux64/steamclient.so /mnt/server/steamcmd/linux64/steamclient.so; do\n    if [[ -s \"$candidate\" ]]; then\n        cp -- \"$candidate\" /mnt/server/.steam/sdk64/steamclient.so\n        break\n    fi\ndone\n[[ -s /mnt/server/.steam/sdk64/steamclient.so ]] || { echo \"steamclient.so not found\" >&2; exit 1; }\n\nfor f in adminlist.txt bannedlist.txt permittedlist.txt; do\n    [[ -e \"/mnt/server/worlds/$f\" ]] || : > \"/mnt/server/worlds/$f\"\ndone\n\necho \"installed\"\n",
             "container": "ghcr.io/parkervcp/installers:debian",
             "entrypoint": "bash"
         }
@@ -65,6 +65,16 @@
             "user_viewable": true,
             "user_editable": true,
             "rules": "required|string|max:80|regex:/^[A-Za-z0-9_-]+$/",
+            "field_type": "text"
+        },
+        {
+            "name": "Sandbox Site",
+            "description": "Sandbox only: --site garage, --site basement, --site small_colo or --site small_campus. Applies when the world is created.",
+            "env_variable": "SITE_FLAG",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|regex:/^(--site (garage|basement|small_colo|small_campus))?$/",
             "field_type": "text"
         },
         {
@@ -134,37 +144,17 @@
             "default_value": "",
             "user_viewable": true,
             "user_editable": true,
-            "rules": "nullable|string|max:400",
+            "rules": "nullable|string|max:400|regex:/^(?!.*--(bind|port|host-token|http-port|stdio)\\b).*$/",
             "field_type": "text"
         },
         {
             "name": "Update On Start",
-            "description": "1 runs SteamCMD before every start.",
+            "description": "1 checks Steam for a new server build before every start.",
             "env_variable": "AUTO_UPDATE",
             "default_value": "1",
             "user_viewable": true,
             "user_editable": true,
             "rules": "required|in:0,1",
-            "field_type": "text"
-        },
-        {
-            "name": "Steam App ID",
-            "description": "Do not change.",
-            "env_variable": "SRCDS_APPID",
-            "default_value": "5053430",
-            "user_viewable": true,
-            "user_editable": false,
-            "rules": "required|in:5053430",
-            "field_type": "text"
-        },
-        {
-            "name": "Steam Account",
-            "description": "Empty for anonymous login.",
-            "env_variable": "STEAM_USER",
-            "default_value": "",
-            "user_viewable": false,
-            "user_editable": false,
-            "rules": "nullable|string|max:0",
             "field_type": "text"
         }
     ]

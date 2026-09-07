@@ -19,6 +19,7 @@ services:
       UPTIME_NAME: My Datacenter
       UPTIME_WORLD: worlds/main.save
       UPTIME_SCENARIO: garage-to-glory
+      # UPTIME_SITE: small_colo            # sandbox only: garage | basement | small_colo | small_campus
       UPTIME_MAX_PLAYERS: "4"
       UPTIME_AUTOSAVE_SECS: "300"
       UPTIME_HARD: "0"

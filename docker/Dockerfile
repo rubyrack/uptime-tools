@@ -41,7 +41,7 @@ EXPOSE 27016/udp
 STOPSIGNAL SIGTERM
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=3 \
-    CMD [ "${UPTIME_HTTP_PORT:-9875}" = "0" ] || curl -fsS "http://127.0.0.1:${UPTIME_HTTP_PORT:-9875}/health" >/dev/null
+    CMD test "${UPTIME_HTTP_PORT:-9875}" = 0 || curl -fsS "http://127.0.0.1:${UPTIME_HTTP_PORT:-9875}/health" >/dev/null
 
 ENTRYPOINT ["/usr/bin/tini", "-g", "--", "/home/uptime/entrypoint.sh"]
 CMD []

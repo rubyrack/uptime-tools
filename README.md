@@ -37,6 +37,7 @@ For an entry that survives restarts, forward UDP 27016 and have players add `you
 | `UPTIME_NAME` | `Uptime server` | |
 | `UPTIME_WORLD` | `worlds/main.save` | Under `/data`. Created from the scenario on first start. |
 | `UPTIME_SCENARIO` | `garage-to-glory` | Used only when the world is created. `garage-to-glory`, `arm-race`, `sandbox`. |
+| `UPTIME_SITE` | `garage` | Sandbox only: the site the world starts at. `garage`, `basement`, `small_colo`, `small_campus`. Only for a new world. |
 | `UPTIME_MAX_PLAYERS` | `4` | `0` for no cap. |
 | `UPTIME_AUTOSAVE_SECS` | `300` | `0` saves only on stop. |
 | `UPTIME_HARD` | `0` | `1` builds a new world in hard mode. Existing worlds keep their mode. |
@@ -93,7 +94,7 @@ The image itself changes rarely (SteamCMD, base image, tunnel agents); `docker c
 
 ## Pterodactyl
 
-`pterodactyl/egg-uptime.json`, PTDL_v2, Linux x86_64. One allocation: the query port. The startup command runs the depot's `start_server.sh`.
+`pterodactyl/egg-uptime.json`, PTDL_v2, Linux x86_64, runs on this image. One allocation: the query port. The egg's installer downloads the server into the server volume; the image's entrypoint recognises Wings (a `STARTUP` line and `/home/container`), updates the server when `AUTO_UPDATE` is 1, and runs the startup line, which is the depot's `start_server.sh`. Stop sends SIGINT and the server saves before exiting.
 
 ## Building
 
@@ -101,7 +102,7 @@ The image itself changes rarely (SteamCMD, base image, tunnel agents); `docker c
 docker buildx build --platform linux/amd64 -t uptime-server docker
 ```
 
-`.github/workflows/image.yml` publishes to GHCR on push and weekly. `smoke.yml` boots the image against Steam on an amd64 runner, waits for the SteamID line, checks health, stops, and restarts into the saved world.
+`.github/workflows/image.yml` publishes to GHCR on push and weekly. `smoke.yml` boots the image against Steam on an amd64 runner, waits for the SteamID line, checks health, stops, and restarts into the saved world; a second job boots it the way Wings does.
 
 ## Status
 

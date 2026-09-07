@@ -68,3 +68,50 @@ jobs:
           docker logs smoke 2>&1 | grep 'world loaded from' || { docker logs smoke; exit 1; }
           docker stop -t 60 smoke
           [ "$(docker inspect -f '{{.State.ExitCode}}' smoke)" = "0" ]
+
+  # The same image the way Pterodactyl's Wings runs it: server at
+  # /home/container, its user, the egg's startup line, stop by SIGINT.
+  panel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: docker build -t uptime-server:smoke docker
+
+      - name: Start with the egg's startup line and no install
+        run: |
+          docker volume create panel-data
+          docker run --rm -v panel-data:/home/container alpine chown 988:988 /home/container
+          docker run -d --name panel --user 988:988 \
+            -v panel-data:/home/container -w /home/container \
+            -e HOME=/home/container -e USER=container \
+            -e STARTUP="$(jq -r .startup pterodactyl/egg-uptime.json)" \
+            -e SERVER_PORT=27016 -e AUTO_UPDATE=1 \
+            -e UPTIME_WORLD=worlds/main.save -e UPTIME_SCENARIO=garage-to-glory \
+            -e SERVER_NAME="CI panel" -e UPTIME_PASSWORD=smoke-test-1 \
+            -e MAX_PLAYERS=4 -e AUTOSAVE_SECS=300 -e STEAM_PORT=27015 \
+            -e SITE_FLAG= -e PUBLIC_ADDR_FLAG= -e PUBLIC_FLAG= -e HARD_FLAG= -e EXTRA_ARGS= \
+            uptime-server:smoke
+
+      - name: Wait for the Steam link
+        run: |
+          for i in $(seq 1 120); do
+            docker logs panel 2>&1 | grep -q '^\[server\] game-server SteamID: [0-9]' && break
+            if [ "$(docker inspect -f '{{.State.Running}}' panel)" != "true" ]; then
+              docker logs panel; exit 1
+            fi
+            sleep 5
+          done
+          docker logs panel 2>&1 | tail -30
+          docker logs panel 2>&1 | grep -q 'game-server link up'
+
+      - name: SIGINT saves and exits 0
+        run: |
+          docker kill -s INT panel
+          for i in $(seq 1 12); do
+            [ "$(docker inspect -f '{{.State.Running}}' panel)" = "true" ] || break
+            sleep 5
+          done
+          [ "$(docker inspect -f '{{.State.ExitCode}}' panel)" = "0" ]
+          docker run --rm -v panel-data:/home/container alpine test -s /home/container/worlds/main.save

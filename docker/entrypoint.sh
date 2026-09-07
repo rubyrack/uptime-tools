@@ -1,10 +1,8 @@
 #!/bin/sh
 set -eu
 
-data=${UPTIME_DATA_DIR:-/data}
-install=$data/server
-steamcmd=$HOME/steamcmd/steamcmd.sh
 app_id=5053430
+image_steamcmd=/home/uptime/steamcmd
 
 log()  { printf 'uptime: %s\n' "$*" >&2; }
 fail() { log "$*"; exit 1; }
@@ -14,9 +12,11 @@ installed_build() {
         | head -n 1 | grep -o '[0-9][0-9]*' || true
 }
 
+# The public branch's buildid; the dump lists every branch.
 steam_build() {
     "$steamcmd" +login anonymous +app_info_update 1 +app_info_print "$app_id" +quit 2>/dev/null \
-        | grep -o '"buildid"[[:space:]]*"[0-9]*"' | head -n 1 | grep -o '[0-9][0-9]*' || true
+        | awk '/"public"/ { p = 1 } p && /"buildid"/ { print; exit }' \
+        | grep -o '[0-9][0-9]*' | head -n 1 || true
 }
 
 # Connected players, from the runner's loopback API. The first request wakes
@@ -28,15 +28,9 @@ players_connected() {
     curl -fsS -m 5 "$url" 2>/dev/null | grep -o '"sessions_connected":[0-9]*' | grep -o '[0-9]*$' || true
 }
 
-password=${UPTIME_PASSWORD:-}
-if [ -z "$password" ] && [ -n "${UPTIME_PASSWORD_FILE:-}" ]; then
-    [ -r "$UPTIME_PASSWORD_FILE" ] || fail "UPTIME_PASSWORD_FILE is not readable: $UPTIME_PASSWORD_FILE"
-    password=$(head -n 1 "$UPTIME_PASSWORD_FILE")
-fi
-[ -n "$password" ] || fail "UPTIME_PASSWORD (or UPTIME_PASSWORD_FILE) is required"
-
-mkdir -p "$install" "$data/worlds"
-if [ "${UPTIME_UPDATE:-1}" = "1" ]; then
+# Install or update the server into $install. Leaves an installed build in
+# place when Steam is unreachable.
+update_server() {
     validate=""
     [ "${UPTIME_VALIDATE:-0}" = "1" ] && validate=validate
     log "updating server (app $app_id)"
@@ -54,28 +48,73 @@ if [ "${UPTIME_UPDATE:-1}" = "1" ]; then
         log "a segfault right after 'Loading Steam API' means SteamCMD is running under x86_64 emulation; use an amd64 host"
         fail "otherwise check that app $app_id allows anonymous login and that Steam is reachable"
     fi
+}
+
+link_steamclient() {
+    for candidate in "$install/linux64/steamclient.so" "$(dirname "$steamcmd")/linux64/steamclient.so"; do
+        if [ -f "$candidate" ]; then
+            mkdir -p "$HOME/.steam/sdk64"
+            ln -sf "$candidate" "$HOME/.steam/sdk64/steamclient.so"
+            break
+        fi
+    done
+}
+
+make_access_lists() {
+    mkdir -p "$1"
+    for f in adminlist.txt bannedlist.txt permittedlist.txt; do
+        [ -e "$1/$f" ] || : > "$1/$f"
+    done
+}
+
+# ── Pterodactyl ──────────────────────────────────────────────────────────────
+# Wings mounts the server at /home/container, runs the container as its own
+# user and hands the egg's startup line over in STARTUP with {{VAR}} holes.
+if [ -n "${STARTUP:-}" ] && [ -d /home/container ]; then
+    cd /home/container
+    install=/home/container
+    steamcmd=./steamcmd/steamcmd.sh
+    if [ ! -x "$steamcmd" ]; then
+        cp -R "$image_steamcmd" ./steamcmd
+    fi
+    if [ "${AUTO_UPDATE:-1}" != "0" ]; then
+        update_server
+    fi
+    [ -x ./start_server.sh ] || fail "no server in /home/container; run the egg installer"
+    chmod 0755 ./uptime-server ./start_server.sh 2>/dev/null || true
+    link_steamclient
+    make_access_lists worlds
+    startup=$(printf '%s' "$STARTUP" | sed -e 's/{{/${/g' -e 's/}}/}/g')
+    log "starting"
+    eval "exec $startup"
+fi
+
+# ── docker run ───────────────────────────────────────────────────────────────
+data=${UPTIME_DATA_DIR:-/data}
+install=$data/server
+steamcmd=$HOME/steamcmd/steamcmd.sh
+
+password=${UPTIME_PASSWORD:-}
+if [ -z "$password" ] && [ -n "${UPTIME_PASSWORD_FILE:-}" ]; then
+    [ -r "$UPTIME_PASSWORD_FILE" ] || fail "UPTIME_PASSWORD_FILE is not readable: $UPTIME_PASSWORD_FILE"
+    password=$(head -n 1 "$UPTIME_PASSWORD_FILE")
+fi
+[ -n "$password" ] || fail "UPTIME_PASSWORD (or UPTIME_PASSWORD_FILE) is required"
+
+mkdir -p "$install" "$data/worlds"
+if [ "${UPTIME_UPDATE:-1}" = "1" ]; then
+    update_server
 fi
 [ -x "$install/start_server.sh" ] || fail "no server in $install; set UPTIME_UPDATE=1"
 chmod 0755 "$install/uptime-server" "$install/start_server.sh" 2>/dev/null || true
-
-for candidate in "$install/linux64/steamclient.so" "$HOME/steamcmd/linux64/steamclient.so"; do
-    if [ -f "$candidate" ]; then
-        mkdir -p "$HOME/.steam/sdk64"
-        ln -sf "$candidate" "$HOME/.steam/sdk64/steamclient.so"
-        break
-    fi
-done
+link_steamclient
 
 world=${UPTIME_WORLD:-worlds/main.save}
 case "$world" in
     /*) ;;
     *) world="$data/$world" ;;
 esac
-world_dir=$(dirname "$world")
-mkdir -p "$world_dir"
-for f in adminlist.txt bannedlist.txt permittedlist.txt; do
-    [ -e "$world_dir/$f" ] || : > "$world_dir/$f"
-done
+make_access_lists "$(dirname "$world")"
 
 query_port=${UPTIME_QUERY_PORT:-27016}
 tunnel=${UPTIME_TUNNEL:-none}
@@ -118,6 +157,7 @@ http_port=${UPTIME_HTTP_PORT:-9875}
 [ -n "${UPTIME_MAX_PLAYERS:-}" ]   && set -- --max-players "$UPTIME_MAX_PLAYERS" "$@"
 [ -n "${UPTIME_AUTOSAVE_SECS:-}" ] && set -- --autosave-secs "$UPTIME_AUTOSAVE_SECS" "$@"
 [ -n "${UPTIME_SEED:-}" ]          && set -- --seed "$UPTIME_SEED" "$@"
+[ -n "${UPTIME_SITE:-}" ]          && set -- --site "$UPTIME_SITE" "$@"
 [ -n "$public_addr" ]              && set -- --public-addr "$public_addr" "$@"
 [ "${UPTIME_PUBLIC:-0}" = "1" ]    && set -- --public "$@"
 [ "${UPTIME_HARD:-0}" = "1" ]      && set -- --hard "$@"
@@ -136,12 +176,15 @@ fi
 log "starting, checking Steam for a new build every $check_secs s"
 ./start_server.sh "$@" &
 runner=$!
-trap 'kill -TERM "$runner" 2>/dev/null' TERM INT
+stopping=""
+trap 'stopping=1; kill -TERM "$runner" 2>/dev/null' TERM INT
 current=$(installed_build)
-while kill -0 "$runner" 2>/dev/null; do
+while [ -z "$stopping" ] && kill -0 "$runner" 2>/dev/null; do
     sleep "$check_secs" &
     wait $! || true
-    kill -0 "$runner" 2>/dev/null || break
+    if [ -n "$stopping" ] || ! kill -0 "$runner" 2>/dev/null; then
+        break
+    fi
     latest=$(steam_build)
     [ -n "$latest" ] && [ -n "$current" ] && [ "$latest" != "$current" ] || continue
     players=$(players_connected)
