@@ -2,7 +2,7 @@
 # The server is installed from Steam at container start, not here.
 FROM debian:bookworm-slim
 
-LABEL org.opencontainers.image.source="https://github.com/RubyRackGames/uptime-tools" \
+LABEL org.opencontainers.image.source="https://github.com/rubyrack/uptime-tools" \
       org.opencontainers.image.description="Uptime dedicated server"
 
 ARG PLAYIT_VERSION=v1.0.10

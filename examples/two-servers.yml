@@ -1,6 +1,6 @@
 services:
   main:
-    image: ghcr.io/rubyrackgames/uptime-server:latest
+    image: ghcr.io/rubyrack/uptime-server:latest
     restart: unless-stopped
     stop_grace_period: 60s
     logging:
@@ -17,7 +17,7 @@ services:
       UPTIME_NAME: Main Datacenter
 
   hard:
-    image: ghcr.io/rubyrackgames/uptime-server:latest
+    image: ghcr.io/rubyrack/uptime-server:latest
     restart: unless-stopped
     stop_grace_period: 60s
     logging:

@@ -1,7 +1,7 @@
 # Every variable with its default.
 services:
   uptime:
-    image: ghcr.io/rubyrackgames/uptime-server:latest
+    image: ghcr.io/rubyrack/uptime-server:latest
     container_name: uptime
     restart: unless-stopped
     stop_grace_period: 60s

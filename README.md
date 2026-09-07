@@ -2,7 +2,7 @@
 
 Docker image, compose examples and Pterodactyl egg for the [Uptime](https://store.steampowered.com/app/4813880) dedicated server.
 
-Image: `ghcr.io/rubyrackgames/uptime-server`. It contains SteamCMD and the launcher glue; the server itself is downloaded from Steam when the container starts, so a game update only needs a restart.
+Image: `ghcr.io/rubyrack/uptime-server`. It contains SteamCMD and the launcher glue; the server itself is downloaded from Steam when the container starts, so a game update only needs a restart.
 
 Player-facing docs: [wiki.playuptime.com/multiplayer/dedicated-server](https://wiki.playuptime.com/multiplayer/dedicated-server).
 
@@ -14,7 +14,7 @@ docker run -d --name uptime \
   -p 27016:27016/udp \
   -v uptime-data:/data \
   -e UPTIME_PASSWORD=change-me \
-  ghcr.io/rubyrackgames/uptime-server
+  ghcr.io/rubyrack/uptime-server
 ```
 
 `docker logs -f uptime` shows the download, then `[steam] game-server link up`, then a few seconds later:

@@ -2,7 +2,7 @@
 # ("pinggy public address"); it changes on every start without a Pro token.
 services:
   uptime:
-    image: ghcr.io/rubyrackgames/uptime-server:latest
+    image: ghcr.io/rubyrack/uptime-server:latest
     container_name: uptime
     restart: unless-stopped
     stop_grace_period: 60s
