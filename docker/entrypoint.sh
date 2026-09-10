@@ -2,7 +2,6 @@
 set -eu
 
 app_id=5053430
-image_steamcmd=/home/uptime/steamcmd
 
 log()  { printf 'uptime: %s\n' "$*" >&2; }
 fail() { log "$*"; exit 1; }
@@ -81,30 +80,10 @@ make_access_lists() {
     done
 }
 
-# ── Pterodactyl ──────────────────────────────────────────────────────────────
-# Wings mounts the server at /home/container, runs the container as its own
-# user and hands the egg's startup line over in STARTUP with {{VAR}} holes.
-if [ -n "${STARTUP:-}" ] && [ -d /home/container ]; then
-    cd /home/container
-    [ -w . ] || fail "/home/container is not writable by uid $(id -u); the server directory must belong to the user Wings runs containers as"
-    install=/home/container
-    steamcmd=./steamcmd/steamcmd.sh
-    if [ ! -x "$steamcmd" ]; then
-        cp -R "$image_steamcmd" ./steamcmd
-    fi
-    if [ "${AUTO_UPDATE:-1}" != "0" ]; then
-        update_server
-    fi
-    [ -x ./start_server.sh ] || fail "no server in /home/container; run the egg installer"
-    chmod 0755 ./uptime-server ./start_server.sh 2>/dev/null || true
-    link_steamclient
-    make_access_lists worlds
-    startup=$(printf '%s' "$STARTUP" | sed -e 's/{{/${/g' -e 's/}}/}/g')
-    log "starting"
-    eval "exec $startup"
-fi
-
-# ── docker run ───────────────────────────────────────────────────────────────
+# This image is for `docker run` / compose. Pterodactyl runs the egg on the
+# community SteamCMD image instead (see pterodactyl/egg-uptime.json): Wings
+# owns the server directory and the uid it runs containers as, and this image
+# bakes its own user and HOME.
 data=${UPTIME_DATA_DIR:-/data}
 install=$data/server
 steamcmd=$HOME/steamcmd/steamcmd.sh

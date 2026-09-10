@@ -95,7 +95,7 @@ The image itself changes rarely (SteamCMD, base image, tunnel agents); `docker c
 
 ## Pterodactyl
 
-`pterodactyl/egg-uptime.json`, PTDL_v2, Linux x86_64, runs on this image. One allocation: the query port. The egg's installer downloads the server into the server volume; the image's entrypoint recognises Wings (a `STARTUP` line and `/home/container`), updates the server when `AUTO_UPDATE` is 1, and runs the startup line, which is the depot's `start_server.sh`. Stop sends SIGINT and the server saves before exiting.
+`pterodactyl/egg-uptime.json`, PTDL_v2, Linux x86_64. It runs on the community SteamCMD image `ghcr.io/parkervcp/steamcmd:debian`, not on the image above: Wings owns the server directory and the uid it runs as, and this image is built for `docker run`. One allocation: the query port. The egg's installer downloads the server into the server volume; on every start the SteamCMD image updates app 5053430 when `AUTO_UPDATE` is 1, then runs the startup line, which is the depot's `start_server.sh`. Stop sends SIGINT and the server saves before exiting.
 
 ## Building
 
@@ -103,7 +103,7 @@ The image itself changes rarely (SteamCMD, base image, tunnel agents); `docker c
 docker buildx build --platform linux/amd64 -t uptime-server docker
 ```
 
-`.github/workflows/image.yml` publishes to GHCR on push and weekly. `smoke.yml` boots the image against Steam on an amd64 runner, waits for the SteamID line, checks health, stops, and restarts into the saved world; a second job boots it the way Wings does.
+`.github/workflows/image.yml` publishes to GHCR on push and weekly. `smoke.yml` boots the image against Steam on an amd64 runner, waits for the SteamID line, checks health, stops, and restarts into the saved world.
 
 ## Status
 
