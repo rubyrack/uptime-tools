@@ -58,19 +58,24 @@ update_server() {
         log "Steam update failed, starting the installed build"
     else
         log "Steam download failed and no server is installed"
-        log "a segfault right after 'Loading Steam API' means SteamCMD is running under x86_64 emulation; use an amd64 host"
+        log "a segfault right after 'Loading Steam API' is SteamCMD's 32-bit x86 client under ARM emulation."
+        log "  No container platform flag fixes that: on an arm64 host it segfaults as linux/386 too."
+        log "  Stage the server on a machine whose SteamCMD works, bind-mount it, set UPTIME_SERVER_DIR."
         fail "otherwise check that app $app_id allows anonymous login and that Steam is reachable"
     fi
 }
 
+# Non-zero when there is no 64-bit steamclient.so to link, so a staged server
+# missing Valve's redist says so at start instead of failing the Steam link.
 link_steamclient() {
     for candidate in "$install/linux64/steamclient.so" "$(dirname "$steamcmd")/linux64/steamclient.so"; do
         if [ -f "$candidate" ]; then
             mkdir -p "$HOME/.steam/sdk64"
             ln -sf "$candidate" "$HOME/.steam/sdk64/steamclient.so"
-            break
+            return 0
         fi
     done
+    return 1
 }
 
 make_access_lists() {
@@ -85,8 +90,25 @@ make_access_lists() {
 # owns the server directory and the uid it runs containers as, and this image
 # bakes its own user and HOME.
 data=${UPTIME_DATA_DIR:-/data}
-install=$data/server
 steamcmd=$HOME/steamcmd/steamcmd.sh
+
+# UPTIME_SERVER_DIR runs a build the operator staged, instead of one SteamCMD
+# downloads here. It exists because Steam's Linux SteamCMD is a 32-bit x86
+# binary: on an arm64 host (Apple Silicon, Graviton, Ampere, Asahi) it
+# segfaults in `Loading Steam API` whatever the container platform says, so
+# the download simply cannot happen in-container there. Stage the depot on a
+# machine whose SteamCMD works, bind-mount it (read-only is fine, nothing is
+# written to it) and point this at it. Updating a directory the operator
+# supplied is not this container's business, so setting it turns the Steam
+# update off unless UPTIME_UPDATE says otherwise.
+install=${UPTIME_SERVER_DIR:-$data/server}
+if [ -n "${UPTIME_UPDATE:-}" ]; then
+    update=$UPTIME_UPDATE
+elif [ -n "${UPTIME_SERVER_DIR:-}" ]; then
+    update=0
+else
+    update=1
+fi
 
 password=${UPTIME_PASSWORD:-}
 if [ -z "$password" ] && [ -n "${UPTIME_PASSWORD_FILE:-}" ]; then
@@ -95,13 +117,27 @@ if [ -z "$password" ] && [ -n "${UPTIME_PASSWORD_FILE:-}" ]; then
 fi
 [ -n "$password" ] || log "no UPTIME_PASSWORD: this is an open server, anyone with the address or the SteamID can join"
 
-mkdir -p "$install" "$data/worlds"
-if [ "${UPTIME_UPDATE:-1}" = "1" ]; then
+mkdir -p "$data/worlds"
+if [ -n "${UPTIME_SERVER_DIR:-}" ]; then
+    [ -d "$install" ] || fail "UPTIME_SERVER_DIR is not a directory in the container: $install (bind-mount the staged server there)"
+else
+    mkdir -p "$install"
+fi
+if [ "$update" = "1" ]; then
     update_server
 fi
-[ -x "$install/start_server.sh" ] || fail "no server in $install; set UPTIME_UPDATE=1"
+
+# Best effort before the check, not after it: a depot copied from another
+# machine can arrive without the execute bit, and this is what restores it.
+# A read-only mount is the case where it cannot, hence the second message.
 chmod 0755 "$install/uptime-server" "$install/start_server.sh" 2>/dev/null || true
-link_steamclient
+if [ ! -x "$install/start_server.sh" ] || [ ! -x "$install/uptime-server" ]; then
+    [ -z "${UPTIME_SERVER_DIR:-}" ] \
+        || fail "no runnable server in UPTIME_SERVER_DIR ($install): both uptime-server and start_server.sh must be present and executable. On a read-only mount this container cannot add the execute bit; chmod +x them on the host."
+    fail "no server in $install; set UPTIME_UPDATE=1, or stage one yourself and set UPTIME_SERVER_DIR"
+fi
+link_steamclient \
+    || log "no 64-bit steamclient.so under $install/linux64 or in the steamcmd install: the Steam link will not come up. Stage Valve's redist beside the server (+app_update 1007)."
 
 world=${UPTIME_WORLD:-worlds/main.save}
 case "$world" in
@@ -159,7 +195,7 @@ http_port=${UPTIME_HTTP_PORT:-9875}
 cd "$install"
 check_secs=$(( ${UPTIME_UPDATE_CHECK_MINS:-30} * 60 ))
 [ -n "${UPTIME_UPDATE_CHECK_SECS:-}" ] && check_secs=$UPTIME_UPDATE_CHECK_SECS
-if [ "${UPTIME_UPDATE:-1}" != "1" ] || [ "$check_secs" -le 0 ] || [ "$http_port" = "0" ]; then
+if [ "$update" != "1" ] || [ "$check_secs" -le 0 ] || [ "$http_port" = "0" ]; then
     log "starting"
     exec ./start_server.sh "$@"
 fi

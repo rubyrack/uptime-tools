@@ -1,5 +1,12 @@
 # linux/amd64 only (SteamCMD and the server depot are x86_64).
 # The server is installed from Steam at container start, not here.
+#
+# That install step needs an x86 HOST, not just the amd64 platform flag:
+# Steam's Linux SteamCMD is a 32-bit x86 binary, and on an arm64 host it
+# segfaults in `Loading Steam API` under every emulator (Rosetta and qemu
+# alike, and as a linux/386 container too). Apple Silicon, Graviton, Ampere
+# and Asahi are all this case. To run the image there, stage the server
+# elsewhere and set UPTIME_SERVER_DIR; see the README's Local server build.
 FROM debian:bookworm-slim
 
 LABEL org.opencontainers.image.source="https://github.com/rubyrack/uptime-tools" \

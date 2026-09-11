@@ -48,6 +48,7 @@ For an entry that survives restarts, forward UDP 27016 and have players add `you
 | `UPTIME_PUBLIC_ADDR` | | `host:port` players should record when it differs from what the server sees (port forward, tunnel). Hostnames are resolved to IPv4 at start. |
 | `UPTIME_TUNNEL` | `none` | `playit` or `pinggy`. |
 | `PUID`, `PGID` | `1000`, `1000` | The user and group the server runs as. Files under `/data` are owned by them; set these to match a bind mount's owner. Ignored when the container is started with `--user`. |
+| `UPTIME_SERVER_DIR` | `/data/server` | A server you staged yourself instead of one SteamCMD downloads. Bind-mount it; read-only is fine, nothing is written to it. Setting this defaults `UPTIME_UPDATE` to `0`. Required on arm64 hosts, see [Local server build](#local-server-build). |
 | `UPTIME_UPDATE` | `1` | Update from Steam on every start. `0` runs the installed build. |
 | `UPTIME_UPDATE_CHECK_MINS` | `30` | While running, check Steam for a new server build this often. When one exists and no players are connected, the server saves, exits and restarts on the new build. `0` disables the check; it is also off when `UPTIME_HTTP_PORT` is `0`. |
 | `UPTIME_VALIDATE` | `0` | `1` validates all server files on start. |
@@ -93,6 +94,39 @@ A game update changes the version players must match. With the defaults the cont
 
 The image itself changes rarely (SteamCMD, base image, tunnel agents); `docker compose pull` now and then is enough.
 
+## Local server build
+
+`UPTIME_SERVER_DIR` points the container at a server you supply, and turns the Steam update off. Two uses: running a build that is not on Steam, and running the image on an **arm64 host**, where the download cannot happen in-container.
+
+The reason is one binary. Steam's Linux SteamCMD is 32-bit x86, and no emulator on arm64 runs it: it segfaults in `Loading Steam API` under Rosetta, under qemu, and as a `linux/386` container. `--platform linux/amd64` does not help, because the platform flag is not the problem. Everything else here is 64-bit and runs fine under emulation, including the server and `steamclient.so`, so staging the depot outside is enough. Apple Silicon, Graviton, Ampere and Asahi are all this case.
+
+Stage it with a SteamCMD that works. On macOS that is the native build, which is 64-bit and needs no emulation:
+
+```sh
+mkdir steamcmd && cd steamcmd
+curl -fsSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_osx.tar.gz | tar -xz
+./steamcmd.sh +@sSteamCmdForcePlatformType linux +@sSteamCmdForcePlatformBitness 64 \
+  +force_install_dir "$PWD/../server" +login anonymous \
+  +app_update 1007 validate +app_update 5053430 validate +quit
+```
+
+App 1007 is Valve's redist and is not optional: it carries `linux64/steamclient.so`, which the game depot may not redistribute and without which the Steam link never comes up. The container says so at start if it is missing.
+
+Then mount it:
+
+```sh
+docker run -d --platform linux/amd64 --name uptime \
+  --restart unless-stopped --stop-timeout 60 \
+  -p 27016:27016/udp \
+  -v uptime-data:/data \
+  -v "$PWD/server":/server:ro \
+  -e UPTIME_SERVER_DIR=/server \
+  -e UPTIME_PASSWORD=change-me \
+  ghcr.io/rubyrack/uptime-server
+```
+
+`/data` still holds the worlds and the access lists; only the install moves. Because the Steam update is off, the 30-minute new-build check is off too, so re-run the staging step yourself when the game updates.
+
 ## Pterodactyl
 
 `pterodactyl/egg-uptime.json`, PTDL_v2, Linux x86_64. It runs on the community SteamCMD image `ghcr.io/parkervcp/steamcmd:debian`, not on the image above: Wings owns the server directory and the uid it runs as, and this image is built for `docker run`. One allocation: the query port. The egg's installer downloads the server into the server volume; on every start the SteamCMD image updates app 5053430 when `AUTO_UPDATE` is 1, then runs the startup line, which is the depot's `start_server.sh`. Stop sends SIGINT and the server saves before exiting.
@@ -107,4 +141,4 @@ docker buildx build --platform linux/amd64 -t uptime-server docker
 
 ## Status
 
-Boot, healthcheck, stop-save and reload are tested with a pre-installed depot. The SteamCMD download at start runs only on amd64 hosts (it crashes under emulation on Apple Silicon) and is covered by the smoke workflow. The playit and pinggy modes have not been run end to end; the Pinggy address parsing follows its documentation.
+Boot, healthcheck, stop-save and reload are tested with a pre-installed depot. The SteamCMD download at start needs an x86 host and is covered by the smoke workflow; on arm64 it cannot work, and [Local server build](#local-server-build) is the supported route there. That route was run end to end on Apple Silicon: Steam link up, healthy, stop-save, restart into the saved world. The playit and pinggy modes have not been run end to end; the Pinggy address parsing follows its documentation.
