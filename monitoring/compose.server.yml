@@ -1,0 +1,100 @@
+# Prometheus and Grafana watching the DEDICATED SERVER container.
+#
+# An overlay, and it has to be: network_mode "service:" only resolves inside
+# one compose project, so this is layered onto the server's own compose file
+# and run from the repository root.
+#
+#   docker compose -f docker-compose.yml -f monitoring/compose.server.yml up -d
+#
+# or just ./monitoring/stack.sh up server, which is the same command.
+#
+# Relative paths below are resolved against the project directory, which is the
+# directory of the FIRST -f file. That is the repository root, hence the
+# ./monitoring/ prefixes.
+#
+# HOW THE RELAY WORKS. The server's read-only API listens on the container's
+# own loopback, so nothing on the compose network can reach it. metrics-relay
+# shares the server container's network namespace, which puts its socat inside
+# that loopback, and re-listens on 0.0.0.0:9876. Because the namespace it is
+# sharing is the server's, that 9876 appears on the server container's address
+# on the compose network -- so Prometheus scrapes it as uptime:9876. Nothing
+# about the server image or the game changes, and no extra port is published.
+#
+# If you set UPTIME_HTTP_PORT to something other than 9875, put the same value
+# in a .env file beside docker-compose.yml so the relay follows it.
+
+services:
+  metrics-relay:
+    image: alpine/socat:1.8.1.3
+    container_name: uptime-metrics-relay
+    restart: unless-stopped
+    depends_on:
+      - uptime
+    network_mode: "service:uptime"
+    command:
+      - TCP-LISTEN:9876,fork,reuseaddr
+      - TCP:127.0.0.1:${UPTIME_HTTP_PORT:-9875}
+    logging:
+      driver: json-file
+      options:
+        max-size: 1m
+        max-file: "2"
+
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    container_name: uptime-prometheus
+    restart: unless-stopped
+    depends_on:
+      - metrics-relay
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-lifecycle
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/targets/server:/etc/prometheus/targets:ro
+      - prometheus-data:/prometheus
+    # Loopback only. A server box is usually reached over SSH anyway, and
+    # forwarding 3000 over that is a better answer than opening it. To open it,
+    # drop the 127.0.0.1: prefix and put auth in front.
+    ports:
+      - "127.0.0.1:9090:9090"
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  grafana:
+    image: grafana/grafana:13.2.1
+    container_name: uptime-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      PROM_URL: http://prometheus:9090
+      GF_SECURITY_ADMIN_PASSWORD: uptime
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_USERS_DEFAULT_THEME: dark
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/overview.json
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  prometheus-data:
+  grafana-data:

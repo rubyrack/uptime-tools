@@ -1,0 +1,173 @@
+# A captured /metrics body, for CI and for screenshots.
+#
+# Written to match crates/sim-api/src/prometheus.rs exactly. Same families in
+# the same order, same HELP strings, and the same number formatting: Rust's {}
+# prints a whole float without a decimal point, so 200.0 is "200".
+#
+# A mid-campaign small colo with two zones. The figures are internally
+# consistent on purpose, so the dashboards' own arithmetic works out. Fabric
+# egress plus ingress minus north-south leaves 101.4 Gbps of east-west. The two
+# trunk lanes sum to the inter-zone figure. Gateway fabric is the term binding
+# the WAN ceiling, which is why 200 Gbps of nameplate delivers 80.
+#
+# Prometheus ignores comment lines that are not HELP or TYPE, so this header is
+# part of a valid body.
+# HELP uptime_build_info Build and world identity. Always 1; the labels carry the information.
+# TYPE uptime_build_info gauge
+uptime_build_info{version="0.1.66",site="small_colo",site_name="Data Center"} 1
+# HELP uptime_wan_binding_info Which term binds the WAN ceiling. Always 1; the binding label carries the answer, and is empty when nothing is deliverable at all.
+# TYPE uptime_wan_binding_info gauge
+uptime_wan_binding_info{binding="GatewayFabric"} 1
+# HELP uptime_cash_dollars Cash on hand.
+# TYPE uptime_cash_dollars gauge
+uptime_cash_dollars 184320.5
+# HELP uptime_revenue_total_dollars Cumulative revenue booked.
+# TYPE uptime_revenue_total_dollars gauge
+uptime_revenue_total_dollars 2417880
+# HELP uptime_revenue_recurring_dollars Cumulative recurring revenue.
+# TYPE uptime_revenue_recurring_dollars gauge
+uptime_revenue_recurring_dollars 2288400
+# HELP uptime_revenue_one_time_dollars Cumulative one-time revenue: signup bonuses and reservation prepay credits. Excluded from the monthly-revenue projection.
+# TYPE uptime_revenue_one_time_dollars gauge
+uptime_revenue_one_time_dollars 129480
+# HELP uptime_revenue_last_hour_dollars Revenue booked in the last simulated hour.
+# TYPE uptime_revenue_last_hour_dollars gauge
+uptime_revenue_last_hour_dollars 3140.75
+# HELP uptime_cost_total_dollars Cumulative OPERATING cost. Excludes hardware purchases, which become assets and reach the profit and loss account gradually as depreciation.
+# TYPE uptime_cost_total_dollars gauge
+uptime_cost_total_dollars 1962455
+# HELP uptime_reputation Reputation, 0 to 1.
+# TYPE uptime_reputation gauge
+uptime_reputation 0.71
+# HELP uptime_customers_total Customers under contract.
+# TYPE uptime_customers_total gauge
+uptime_customers_total 46
+# HELP uptime_customers_active Customers currently being served.
+# TYPE uptime_customers_active gauge
+uptime_customers_active 44
+# HELP uptime_staff_total Staff employed.
+# TYPE uptime_staff_total gauge
+uptime_staff_total 7
+# HELP uptime_hosts_racked Hosts mounted in a rack. The denominator under uptime_hosts_online; carried or boxed gear is not a host that could be online.
+# TYPE uptime_hosts_racked gauge
+uptime_hosts_racked 152
+# HELP uptime_hosts_online Hosts the engine calls serviceable: powered, up, and reachable through a live network chain to a carrier line.
+# TYPE uptime_hosts_online gauge
+uptime_hosts_online 148
+# HELP uptime_hosts_contended Online hosts whose live demand exceeds their effective vCPU.
+# TYPE uptime_hosts_contended gauge
+uptime_hosts_contended 3
+# HELP uptime_hosts_warm Online hosts past 80 percent of their effective vCPU but not yet contended.
+# TYPE uptime_hosts_warm gauge
+uptime_hosts_warm 11
+# HELP uptime_busiest_host_load_ratio Live CPU share of the busiest online host. It exceeds 1 on an oversold box the engine is throttling, so clamp it before drawing a bar.
+# TYPE uptime_busiest_host_load_ratio gauge
+uptime_busiest_host_load_ratio 0.94
+# HELP uptime_fleet_mem_ratio Live memory requested across online hosts, weighted by each host's nameplate memory.
+# TYPE uptime_fleet_mem_ratio gauge
+uptime_fleet_mem_ratio 0.68
+# HELP uptime_fleet_disk_ratio Disk used across online hosts, weighted by each host's nameplate disk.
+# TYPE uptime_fleet_disk_ratio gauge
+uptime_fleet_disk_ratio 0.41
+# HELP uptime_cables_total Every cable in the world.
+# TYPE uptime_cables_total gauge
+uptime_cables_total 412
+# HELP uptime_cables_failed Cables that are failed right now.
+# TYPE uptime_cables_failed gauge
+uptime_cables_failed 2
+# HELP uptime_fabric_egress_gbps Every host's NIC egress summed, whatever the host's state. Smoothed, so it lags the instantaneous sum by design.
+# TYPE uptime_fabric_egress_gbps gauge
+uptime_fabric_egress_gbps 84.2
+# HELP uptime_fabric_ingress_gbps Every host's NIC ingress summed. Egress plus ingress is the total the fabric carries. Subtract uptime_north_south_gbps from that total to get east-west.
+# TYPE uptime_fabric_ingress_gbps gauge
+uptime_fabric_ingress_gbps 79.6
+# HELP uptime_north_south_gbps What crosses the routers to and from the internet: every gateway's WAN egress plus WAN ingress. It uses the same smoothing half-life as the fabric figures, so both sides of the east-west subtraction have the same memory.
+# TYPE uptime_north_south_gbps gauge
+uptime_north_south_gbps 62.4
+# HELP uptime_inter_zone_gbps Traffic between the site's zones: every lane of every inter-zone trunk summed. Cross-zone east-west, replication and egress failover all count; same-fabric traffic never does. Zero on a single-zone site.
+# TYPE uptime_inter_zone_gbps gauge
+uptime_inter_zone_gbps 40
+# HELP uptime_wan_effective_gbps THE facility WAN ceiling the simulation enforces: per zone, the minimum of lines, gateway fabric and inline edge appliance, summed over zones. Sustained egress above this is what drives the facility egress drop probability.
+# TYPE uptime_wan_effective_gbps gauge
+uptime_wan_effective_gbps 80
+# HELP uptime_wan_lines_gbps One term of the WAN ceiling: effective circuit capacity summed over lines, after the pairing law. A dark line reads 0.
+# TYPE uptime_wan_lines_gbps gauge
+uptime_wan_lines_gbps 200
+# HELP uptime_wan_gateway_fabric_gbps One term of the WAN ceiling: router forwarding capacity after every fitted security add-on's throttle, under the BGP law. It reads 0 when this site does not model the term, and then the term is not gating.
+# TYPE uptime_wan_gateway_fabric_gbps gauge
+uptime_wan_gateway_fabric_gbps 80
+# HELP uptime_wan_inline_appliance_gbps One term of the WAN ceiling: the tightest racked in-path edge firewall. It reads 0 when this site does not model the term, and then the term is not gating.
+# TYPE uptime_wan_inline_appliance_gbps gauge
+uptime_wan_inline_appliance_gbps 100
+# HELP uptime_heat_load_watts Current heat load.
+# TYPE uptime_heat_load_watts gauge
+uptime_heat_load_watts 38400
+# HELP uptime_cooling_capacity_watts Installed cooling capacity.
+# TYPE uptime_cooling_capacity_watts gauge
+uptime_cooling_capacity_watts 52000
+# HELP uptime_public_ips_used Public IPs allocated.
+# TYPE uptime_public_ips_used gauge
+uptime_public_ips_used 118
+# HELP uptime_public_ips_max Public IPs available.
+# TYPE uptime_public_ips_max gauge
+uptime_public_ips_max 256
+# HELP uptime_uplink_egress_gbps Current uplink egress.
+# TYPE uptime_uplink_egress_gbps gauge
+uptime_uplink_egress_gbps 41.8
+# HELP uptime_uplink_capacity_gbps NAMEPLATE sum of uplink capacity. Routinely far larger than what the site can deliver; divide by uptime_wan_effective_gbps for utilisation.
+# TYPE uptime_uplink_capacity_gbps gauge
+uptime_uplink_capacity_gbps 200
+# HELP uptime_active_ddos_gbps Inbound attack volume, 0 when not under attack.
+# TYPE uptime_active_ddos_gbps gauge
+uptime_active_ddos_gbps 4.2
+# HELP uptime_incidents_open Open incidents.
+# TYPE uptime_incidents_open gauge
+uptime_incidents_open 1
+# HELP uptime_work_orders_open Outstanding work orders.
+# TYPE uptime_work_orders_open gauge
+uptime_work_orders_open 3
+# HELP uptime_sim_time_seconds Simulated time elapsed.
+# TYPE uptime_sim_time_seconds gauge
+uptime_sim_time_seconds 5443200
+# HELP uptime_apply_queue_depth Depth of the engine apply queue. The number to watch if the sim feels slow.
+# TYPE uptime_apply_queue_depth gauge
+uptime_apply_queue_depth 0
+# HELP uptime_sessions_connected Attached IPC sessions.
+# TYPE uptime_sessions_connected gauge
+uptime_sessions_connected 1
+# HELP uptime_mirror_age_seconds Age of the read model being scraped. Sits near the configured cadence while you keep scraping; the FIRST scrape after a long idle period can be older, because the mirror stops being published when nothing has read it for a while.
+# TYPE uptime_mirror_age_seconds gauge
+uptime_mirror_age_seconds 0.412
+# HELP uptime_mirror_publish_seq Monotonic publish counter. A flat value across scrapes means the apply thread is not reaching its publish point.
+# TYPE uptime_mirror_publish_seq gauge
+uptime_mirror_publish_seq 5412
+# HELP uptime_drop_probability Packet drop probability by stage.
+# TYPE uptime_drop_probability gauge
+uptime_drop_probability{stage="facility_egress"} 0.013
+uptime_drop_probability{stage="backbone"} 0.004
+uptime_drop_probability{stage="appliance_fabric"} 0
+# HELP uptime_trunk_lane_gbps Traffic on one lane of an inter-zone trunk, labelled by the zone it leaves and the zone it enters.
+# TYPE uptime_trunk_lane_gbps gauge
+uptime_trunk_lane_gbps{from="az-a",to="az-b"} 18.6
+uptime_trunk_lane_gbps{from="az-b",to="az-a"} 21.4
+# HELP uptime_trunk_lane_drop_probability Drop probability a saturated inter-zone trunk lane applies to what crosses it.
+# TYPE uptime_trunk_lane_drop_probability gauge
+uptime_trunk_lane_drop_probability{from="az-a",to="az-b"} 0
+uptime_trunk_lane_drop_probability{from="az-b",to="az-a"} 0.004
+# HELP uptime_trunk_up Whether the trunk between two zones is up (both zones have a live multi-zone router and the trunk is not cut). Labelled by the zone pair.
+# TYPE uptime_trunk_up gauge
+uptime_trunk_up{a="az-a",b="az-b"} 1
+# HELP uptime_entities_total Count of world entities by kind.
+# TYPE uptime_entities_total gauge
+uptime_entities_total{kind="region"} 1
+uptime_entities_total{kind="az"} 2
+uptime_entities_total{kind="rack"} 12
+uptime_entities_total{kind="host"} 152
+uptime_entities_total{kind="switch"} 16
+uptime_entities_total{kind="gateway"} 4
+uptime_entities_total{kind="appliance"} 6
+uptime_entities_total{kind="patch_panel"} 8
+uptime_entities_total{kind="cable"} 412
+uptime_entities_total{kind="customer"} 46
+uptime_entities_total{kind="prospect"} 9
+uptime_entities_total{kind="staff"} 7

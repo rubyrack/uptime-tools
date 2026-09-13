@@ -88,6 +88,18 @@ docker run --rm -v uptime-data:/data -v "$PWD":/backup alpine tar czf /backup/up
 
 Stop the container first for a consistent copy, or take the `.1` file, which is the previous completed save.
 
+## Metrics and dashboards
+
+Every world serves a read-only Prometheus exposition at `/metrics` on the HTTP port, alongside a JSON API and Swagger at `/docs`. `monitoring/` turns that into a running Grafana with the dashboards already built:
+
+```sh
+./monitoring/stack.sh up server
+```
+
+Then open `http://127.0.0.1:3000`. There is no login and nothing to configure. The server itself does not change: a socat sidecar shares its network namespace, which lets Prometheus reach an endpoint that only listens on loopback. To watch a game running on your own machine instead, use `./monitoring/stack.sh up`.
+
+Five dashboards come with it, split the way the game splits its own wallboards and console pages: a control room, the internet edge, the fabric inside the building, capacity, and the business. Every panel shades the periods when an incident was open, an attack was inbound or a trunk was down. [`monitoring/README.md`](monitoring/README.md) covers the rest, including how to watch several servers at once.
+
 ## Updates
 
 A game update changes the version players must match. With the defaults the container updates the server on every start and, every 30 minutes, asks Steam whether a new build exists. When one does and nobody is connected, the server saves and exits, and the container's restart policy brings it back on the new build. While players are on, it waits and checks again. Set `UPTIME_UPDATE_CHECK_MINS=0` to restart on your own schedule instead.

@@ -1,0 +1,16 @@
+apiVersion: 1
+
+providers:
+  - name: Uptime
+    orgId: 1
+    folder: ""
+    type: file
+    # Tinkering is allowed and survives a restart: Save in the browser writes
+    # to Grafana's own database, not back to the JSON. The file on disk wins
+    # again only when it changes, which is what an update to this repo does.
+    allowUiUpdates: true
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

@@ -1,0 +1,38 @@
+# Prometheus for Uptime.
+#
+# THE 5s SCRAPE INTERVAL MATTERS. The game renders /metrics from a read model
+# it publishes on a 1 Hz cadence, behind a demand gate. It stops publishing
+# about a minute after the last read, and a reader that arrives once the gate
+# has closed takes one stale sample before it reopens. Anything polling faster
+# than once a minute keeps the mirror warm, so every sample is fresh. Do not
+# raise this past 60s.
+#
+# Scraping costs the game nothing beyond that. The game publishes on its
+# cadence rather than per request, so a second scraper adds no work.
+
+global:
+  scrape_interval: 5s
+  scrape_timeout: 4s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: uptime
+
+scrape_configs:
+  - job_name: uptime
+    metrics_path: /metrics
+    # File discovery rather than a static target, for two reasons. The compose
+    # layer chooses which world to watch by mounting one directory or another
+    # at /etc/prometheus/targets, so the three reachability cases share this
+    # one config file. And an operator watching several servers drops another
+    # JSON file in beside the first. Prometheus re-reads the directory when it
+    # changes, so neither a restart nor a reload is needed.
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/*.json
+        refresh_interval: 30s
+
+  # Self-scrape. Cheap, and it is what tells you Prometheus itself is fine when
+  # the uptime job goes down.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["127.0.0.1:9090"]
