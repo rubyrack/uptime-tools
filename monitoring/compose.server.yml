@@ -67,7 +67,7 @@ services:
         max-file: "3"
 
   grafana:
-    image: grafana/grafana:13.2.1
+    image: grafana/grafana:13.2.2
     container_name: uptime-grafana
     restart: unless-stopped
     depends_on:
