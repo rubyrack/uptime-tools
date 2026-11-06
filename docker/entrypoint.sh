@@ -25,11 +25,21 @@ installed_build() {
         | head -n 1 | grep -o '[0-9][0-9]*' || true
 }
 
-# The public branch's buildid; the dump lists every branch.
+# The public branch's buildid. The dump lists every branch, and depots carry
+# their own "manifests" { "public" ... } blocks first, so "public" only counts
+# once the "branches" block has started.
 steam_build() {
     "$steamcmd" +login anonymous +app_info_update 1 +app_info_print "$app_id" +quit 2>/dev/null \
-        | awk '/"public"/ { p = 1 } p && /"buildid"/ { print; exit }' \
+        | awk '/"branches"/ { b = 1 } b && /"public"/ { p = 1 } p && /"buildid"/ { print; exit }' \
         | grep -o '[0-9][0-9]*' | head -n 1 || true
+}
+
+# True only when both builds are numbers and the installed one is lower. A
+# stale Steam cache can report a lower build than the one installed, and an
+# unparsable value is "unknown": neither may take a working server down.
+installed_is_older() {
+    case "$installed$latest" in *[!0-9]*) return 1 ;; esac
+    [ -n "$installed" ] && [ -n "$latest" ] && [ "$installed" -lt "$latest" ]
 }
 
 # Connected players, from the runner's loopback API. The first request wakes
@@ -64,7 +74,7 @@ update_incomplete() {
     installed=$(installed_build)
     latest=$(steam_build)
     [ "$steam_rc" != "0" ] && return 0
-    [ -n "$installed" ] && [ -n "$latest" ] && [ "$installed" != "$latest" ]
+    installed_is_older
 }
 
 # Install or update the server into $install.
@@ -85,14 +95,19 @@ update_server() {
     log "updating server (app $app_id) in $install"
     run_steamcmd "$validate"
     if update_incomplete; then
-        log "update did not complete (SteamCMD exit $steam_rc, installed build ${installed:-none}, latest ${latest:-unknown}); retrying once with validate after clearing the app manifest"
+        log "update did not complete (SteamCMD exit $steam_rc, installed build ${installed:-none}, latest ${latest:-unknown})"
         manifest=$install/steamapps/appmanifest_$app_id.acf
-        cp "$manifest" "$steam_out.acf" 2>/dev/null || true
-        rm -f "$manifest"
-        rm -rf "$install/steamapps/downloading" "$install/steamapps/temp"
-        run_steamcmd validate
-        # A retry that wrote nothing must not leave the installed build unnamed.
-        [ -e "$manifest" ] || [ ! -e "$steam_out.acf" ] || cp "$steam_out.acf" "$manifest" 2>/dev/null || true
+        if [ -d "$install/steamapps" ] && [ ! -w "$install/steamapps" ]; then
+            log "$install/steamapps is not writable by this user (check PUID/PGID or the mount), so the manifest cannot be cleared and there is no retry"
+        else
+            log "retrying once with validate after clearing the app manifest"
+            cp "$manifest" "$steam_out.acf" 2>/dev/null || true
+            rm -f "$manifest" || log "could not remove $manifest"
+            rm -rf "$install/steamapps/downloading" "$install/steamapps/temp" || log "could not clear SteamCMD's download state"
+            run_steamcmd validate
+            # A retry that wrote nothing must not leave the installed build unnamed.
+            [ -e "$manifest" ] || [ ! -e "$steam_out.acf" ] || cp "$steam_out.acf" "$manifest" 2>/dev/null || true
+        fi
     fi
     if update_incomplete; then
         log "update failed again (SteamCMD exit $steam_rc, installed build ${installed:-unknown}, latest ${latest:-unknown}); last SteamCMD output:"
@@ -104,13 +119,11 @@ update_server() {
             log "  Stage the server on a machine whose SteamCMD works, bind-mount it, set UPTIME_SERVER_DIR."
             rm -f "$steam_out" "$steam_out.rc" "$steam_out.acf"
             fail "otherwise check that app $app_id allows anonymous login and that Steam is reachable"
-        elif [ -z "$latest" ]; then
-            log "Steam is unreachable, starting the installed build ${installed:-unknown} (build not verified)"
-        elif [ "$installed" = "$latest" ]; then
-            log "installed build $installed is the latest, starting it"
-        else
+        elif installed_is_older; then
             rm -f "$steam_out" "$steam_out.rc" "$steam_out.acf"
-            fail "refusing to run build ${installed:-unknown}: Steam has $latest and players on it cannot join an older server. Check that $install is writable and has free space, then restart (UPTIME_VALIDATE=1 forces a full check)."
+            fail "refusing to run build $installed: Steam has $latest and players on it cannot join an older server. Check that $install is writable and has free space, then restart (UPTIME_VALIDATE=1 forces a full check)."
+        else
+            log "installed build ${installed:-unknown} is not older than Steam's (${latest:-unknown}), or one of them is unknown: starting it unverified"
         fi
     else
         log "server is up to date${installed:+, build $installed}"
@@ -276,7 +289,8 @@ while [ -z "$stopping" ] && kill -0 "$runner" 2>/dev/null; do
         break
     fi
     latest=$(steam_build)
-    [ -n "$latest" ] && [ -n "$current" ] && [ "$latest" != "$current" ] || continue
+    installed=$current
+    installed_is_older || continue
     if [ "$latest" = "$tried" ]; then
         wait_secs=$(( wait_secs * 2 ))
         [ "$wait_secs" -le 86400 ] || wait_secs=86400
