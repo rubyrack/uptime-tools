@@ -106,6 +106,19 @@ A game update changes the version players must match. With the defaults the cont
 
 The image itself changes rarely (SteamCMD, base image, tunnel agents); `docker compose pull` now and then is enough.
 
+### Server stuck on an old build
+
+Symptom: players on the current game version cannot join, and the log shows `running <old build>` or a restart every 30 minutes.
+
+What the container does when the Steam update fails: it retries once with `validate` after deleting `steamapps/appmanifest_5053430.acf` and SteamCMD's `downloading/` and `temp/` state, because a stale manifest makes SteamCMD think it is current. If that fails too, it logs the SteamCMD exit code and its last lines, with the installed and latest build numbers, and then:
+
+- installed build is the latest, or Steam cannot be reached to say: it starts the installed build and logs which.
+- installed build is older than Steam's: it exits non-zero instead of running a server current players cannot join. `docker logs` shows `refusing to run build ...`; the restart policy keeps retrying the update.
+
+The 30-minute check restarts for a given new build once. If the container comes back on the old build, it logs that the update is failing and backs off (the interval doubles, up to 24 hours) instead of restarting again.
+
+To fix it, look at the SteamCMD lines in `docker logs`, then check that the install directory is writable by `PUID:PGID` and has free space. The install directory is `/data/server`, or `UPTIME_SERVER_DIR` when set; with a bind mount, the mount must be writable and `UPTIME_UPDATE=1` must be set (`UPTIME_SERVER_DIR` alone turns updates off). `UPTIME_VALIDATE=1` forces a full file check on start. As a last resort, delete `steamapps/appmanifest_5053430.acf` in the install directory and restart.
+
 ## Local server build
 
 `UPTIME_SERVER_DIR` points the container at a server you supply, and turns the Steam update off. Two uses: running a build that is not on Steam, and running the image on an **arm64 host**, where the download cannot happen in-container.

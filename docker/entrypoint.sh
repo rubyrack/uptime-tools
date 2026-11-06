@@ -25,11 +25,21 @@ installed_build() {
         | head -n 1 | grep -o '[0-9][0-9]*' || true
 }
 
-# The public branch's buildid; the dump lists every branch.
+# The public branch's buildid. The dump lists every branch, and depots carry
+# their own "manifests" { "public" ... } blocks first, so "public" only counts
+# once the "branches" block has started.
 steam_build() {
     "$steamcmd" +login anonymous +app_info_update 1 +app_info_print "$app_id" +quit 2>/dev/null \
-        | awk '/"public"/ { p = 1 } p && /"buildid"/ { print; exit }' \
+        | awk '/"branches"/ { b = 1 } b && /"public"/ { p = 1 } p && /"buildid"/ { print; exit }' \
         | grep -o '[0-9][0-9]*' | head -n 1 || true
+}
+
+# True only when both builds are numbers and the installed one is lower. A
+# stale Steam cache can report a lower build than the one installed, and an
+# unparsable value is "unknown": neither may take a working server down.
+installed_is_older() {
+    case "$installed$latest" in *[!0-9]*) return 1 ;; esac
+    [ -n "$installed" ] && [ -n "$latest" ] && [ "$installed" -lt "$latest" ]
 }
 
 # Connected players, from the runner's loopback API. The first request wakes
@@ -41,28 +51,84 @@ players_connected() {
     curl -fsS -m 5 "$url" 2>/dev/null | grep -o '"sessions_connected":[0-9]*' | grep -o '[0-9]*$' || true
 }
 
-# Install or update the server into $install. Leaves an installed build in
-# place when Steam is unreachable.
+# One SteamCMD pass over the redist and the server ($1 is "validate" or empty).
+# Sets steam_rc to its exit code (a pipe into tee would hide it); the output is
+# kept in $steam_out so a failure can quote the last lines.
+run_steamcmd() {
+    {
+        if "$steamcmd" +force_install_dir "$install" +login anonymous \
+                +app_update 1007 ${1:+"$1"} \
+                +app_update "$app_id" ${1:+"$1"} \
+                +quit; then
+            echo 0 > "$steam_out.rc"
+        else
+            echo $? > "$steam_out.rc"
+        fi
+    } 2>&1 | tee "$steam_out" >&2
+    read -r steam_rc < "$steam_out.rc"
+}
+
+# True when the last SteamCMD pass failed, or the installed build is not the
+# public branch's. Sets installed and latest for the caller's log lines.
+update_incomplete() {
+    installed=$(installed_build)
+    latest=$(steam_build)
+    [ "$steam_rc" != "0" ] && return 0
+    installed_is_older
+}
+
+# Install or update the server into $install.
+#
+# A failed or partial update is retried once from a clean slate: the app
+# manifest and SteamCMD's download state are removed and the files validated,
+# because a stale manifest makes SteamCMD believe it is current while the
+# files are not. If the update still fails, an installed build is run only
+# when it is the latest one (or Steam cannot say what the latest is, so an
+# outage does not take a working server down). An installed build known to be
+# older is never run: players on the current version cannot join it, and
+# starting it hides that from the orchestrator. The container exits non-zero
+# instead.
 update_server() {
     validate=""
     [ "${UPTIME_VALIDATE:-0}" = "1" ] && validate=validate
-    log "updating server (app $app_id)"
-    # shellcheck disable=SC2086
-    if "$steamcmd" +force_install_dir "$install" +login anonymous \
-            +app_update 1007 $validate \
-            +app_update "$app_id" $validate \
-            +quit; then
-        build=$(installed_build)
-        log "server is up to date${build:+, build $build}"
-    elif [ -x "$install/uptime-server" ]; then
-        log "Steam update failed, starting the installed build"
-    else
-        log "Steam download failed and no server is installed"
-        log "a segfault right after 'Loading Steam API' is SteamCMD's 32-bit x86 client under ARM emulation."
-        log "  No container platform flag fixes that: on an arm64 host it segfaults as linux/386 too."
-        log "  Stage the server on a machine whose SteamCMD works, bind-mount it, set UPTIME_SERVER_DIR."
-        fail "otherwise check that app $app_id allows anonymous login and that Steam is reachable"
+    steam_out=$(mktemp)
+    log "updating server (app $app_id) in $install"
+    run_steamcmd "$validate"
+    if update_incomplete; then
+        log "update did not complete (SteamCMD exit $steam_rc, installed build ${installed:-none}, latest ${latest:-unknown})"
+        manifest=$install/steamapps/appmanifest_$app_id.acf
+        if [ -d "$install/steamapps" ] && [ ! -w "$install/steamapps" ]; then
+            log "$install/steamapps is not writable by this user (check PUID/PGID or the mount), so the manifest cannot be cleared and there is no retry"
+        else
+            log "retrying once with validate after clearing the app manifest"
+            cp "$manifest" "$steam_out.acf" 2>/dev/null || true
+            rm -f "$manifest" || log "could not remove $manifest"
+            rm -rf "$install/steamapps/downloading" "$install/steamapps/temp" || log "could not clear SteamCMD's download state"
+            run_steamcmd validate
+            # A retry that wrote nothing must not leave the installed build unnamed.
+            [ -e "$manifest" ] || [ ! -e "$steam_out.acf" ] || cp "$steam_out.acf" "$manifest" 2>/dev/null || true
+        fi
     fi
+    if update_incomplete; then
+        log "update failed again (SteamCMD exit $steam_rc, installed build ${installed:-unknown}, latest ${latest:-unknown}); last SteamCMD output:"
+        tail -n 10 "$steam_out" | sed 's/^/uptime:   /' >&2
+        if [ ! -x "$install/uptime-server" ]; then
+            log "Steam download failed and no server is installed"
+            log "a segfault right after 'Loading Steam API' is SteamCMD's 32-bit x86 client under ARM emulation."
+            log "  No container platform flag fixes that: on an arm64 host it segfaults as linux/386 too."
+            log "  Stage the server on a machine whose SteamCMD works, bind-mount it, set UPTIME_SERVER_DIR."
+            rm -f "$steam_out" "$steam_out.rc" "$steam_out.acf"
+            fail "otherwise check that app $app_id allows anonymous login and that Steam is reachable"
+        elif installed_is_older; then
+            rm -f "$steam_out" "$steam_out.rc" "$steam_out.acf"
+            fail "refusing to run build $installed: Steam has $latest and players on it cannot join an older server. Check that $install is writable and has free space, then restart (UPTIME_VALIDATE=1 forces a full check)."
+        else
+            log "installed build ${installed:-unknown} is not older than Steam's (${latest:-unknown}), or one of them is unknown: starting it unverified"
+        fi
+    else
+        log "server is up to date${installed:+, build $installed}"
+    fi
+    rm -f "$steam_out" "$steam_out.rc" "$steam_out.acf"
 }
 
 # Non-zero when there is no 64-bit steamclient.so to link, so a staged server
@@ -209,17 +275,32 @@ runner=$!
 stopping=""
 trap 'stopping=1; kill -TERM "$runner" 2>/dev/null' TERM INT
 current=$(installed_build)
+# The build a restart was last requested for. If the restart came back on the
+# same old build, restarting again cannot help (the update itself is failing),
+# so the check backs off and logs instead of looping every interval.
+marker=$data/.update-restart-for
+tried=$(head -n 1 "$marker" 2>/dev/null || true)
+[ "$tried" != "$current" ] || { rm -f "$marker"; tried=""; }
+wait_secs=$check_secs
 while [ -z "$stopping" ] && kill -0 "$runner" 2>/dev/null; do
-    sleep "$check_secs" &
+    sleep "$wait_secs" &
     wait $! || true
     if [ -n "$stopping" ] || ! kill -0 "$runner" 2>/dev/null; then
         break
     fi
     latest=$(steam_build)
-    [ -n "$latest" ] && [ -n "$current" ] && [ "$latest" != "$current" ] || continue
+    installed=$current
+    installed_is_older || continue
+    if [ "$latest" = "$tried" ]; then
+        wait_secs=$(( wait_secs * 2 ))
+        [ "$wait_secs" -le 86400 ] || wait_secs=86400
+        log "Steam has build $latest but a restart already came back on build $current: the update is failing, not restarting again. Next check in $wait_secs s; see the SteamCMD output above."
+        continue
+    fi
     players=$(players_connected)
     if [ "$players" = "0" ]; then
         log "Steam has build $latest (running $current), no players connected, restarting to update"
+        printf '%s\n' "$latest" > "$marker" 2>/dev/null || true
         kill -TERM "$runner" 2>/dev/null
         break
     fi
