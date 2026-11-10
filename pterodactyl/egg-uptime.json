@@ -12,7 +12,7 @@
         "SteamCMD (Debian)": "ghcr.io/parkervcp/steamcmd:debian"
     },
     "file_denylist": [],
-    "startup": "./start_server.sh --world {{UPTIME_WORLD}} --scenario {{UPTIME_SCENARIO}} --name \"{{SERVER_NAME}}\" --password \"{{UPTIME_PASSWORD}}\" --max-players {{MAX_PLAYERS}} --autosave-secs {{AUTOSAVE_SECS}} --query-port {{SERVER_PORT}} --steam-port {{STEAM_PORT}} {{SITE_FLAG}} {{PUBLIC_ADDR_FLAG}} {{PUBLIC_FLAG}} {{HARD_FLAG}} {{EXTRA_ARGS}}",
+    "startup": "./start_server.sh --world {{UPTIME_WORLD}} --scenario {{UPTIME_SCENARIO}} --name \"{{SERVER_NAME}}\" --password \"{{UPTIME_PASSWORD}}\" --max-players {{MAX_PLAYERS}} --autosave-secs {{AUTOSAVE_SECS}} --query-port {{SERVER_PORT}} --steam-port {{STEAM_PORT}} {{SITE_FLAG}} {{PUBLIC_ADDR_FLAG}} {{PUBLIC_FLAG}} {{HARD_FLAG}} {{MODS_DIR_FLAG}} {{ENABLE_MODS_FLAG}} {{MOD_CONFIG_FLAG}} {{EXTRA_ARGS}}",
     "config": {
         "files": "{}",
         "startup": "{\"done\":\"game-server link up\"}",
@@ -135,6 +135,36 @@
             "user_viewable": true,
             "user_editable": true,
             "rules": "nullable|string|in:--hard",
+            "field_type": "text"
+        },
+        {
+            "name": "Mods Folder",
+            "description": "--mods-dir PATH: a folder of pack folders, such as mods. Needs Enabled Mods.",
+            "env_variable": "MODS_DIR_FLAG",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:300|regex:/^(--mods-dir [A-Za-z0-9_.\\/-]+)?$/",
+            "field_type": "text"
+        },
+        {
+            "name": "Enabled Mods",
+            "description": "--enable-mods ID,ID: pack manifest ids, not Workshop item numbers or folder names. Needs Mods Folder.",
+            "env_variable": "ENABLE_MODS_FLAG",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:300|regex:/^(--enable-mods [A-Za-z0-9_.,-]+)?$/",
+            "field_type": "text"
+        },
+        {
+            "name": "Mod Config Folder",
+            "description": "--mod-config DIR: a folder holding <mod id>.json for each enabled pack with a config schema. Needs Mods Folder and Enabled Mods.",
+            "env_variable": "MOD_CONFIG_FLAG",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:300|regex:/^(--mod-config [A-Za-z0-9_.\\/-]+)?$/",
             "field_type": "text"
         },
         {

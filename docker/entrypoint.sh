@@ -239,6 +239,14 @@ if [ -n "$public_addr" ]; then
     esac
 fi
 
+# Content packs. --mods-dir and --enable-mods go together (the server refuses
+# one without the other); --mod-config needs both. A relative path is under
+# the data directory, like the world.
+mods_dir=${UPTIME_MODS_DIR:-}
+mod_config=${UPTIME_MOD_CONFIG:-}
+case "$mods_dir" in ''|/*) ;; *) mods_dir="$data/$mods_dir" ;; esac
+case "$mod_config" in ''|/*) ;; *) mod_config="$data/$mod_config" ;; esac
+
 set -- \
     --world "$world" \
     --scenario "${UPTIME_SCENARIO:-garage-to-glory}" \
@@ -257,6 +265,9 @@ http_port=${UPTIME_HTTP_PORT:-9875}
 [ -n "$public_addr" ]              && set -- --public-addr "$public_addr" "$@"
 [ "${UPTIME_PUBLIC:-0}" = "1" ]    && set -- --public "$@"
 [ "${UPTIME_HARD:-0}" = "1" ]      && set -- --hard "$@"
+[ -n "$mods_dir" ]                 && set -- --mods-dir "$mods_dir" "$@"
+[ -n "${UPTIME_ENABLE_MODS:-}" ]   && set -- --enable-mods "$UPTIME_ENABLE_MODS" "$@"
+[ -n "$mod_config" ]               && set -- --mod-config "$mod_config" "$@"
 
 cd "$install"
 check_secs=$(( ${UPTIME_UPDATE_CHECK_MINS:-30} * 60 ))

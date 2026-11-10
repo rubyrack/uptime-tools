@@ -43,6 +43,9 @@ For an entry that survives restarts, forward UDP 27016 and have players add `you
 | `UPTIME_HARD` | `0` | `1` builds a new world in hard mode. Existing worlds keep their mode. |
 | `UPTIME_PUBLIC` | `0` | `1` lists the server in the game's Internet tab. Needs the query port reachable directly. |
 | `UPTIME_SEED` | random | Only for a new world. |
+| `UPTIME_MODS_DIR` | | Passed as `--mods-dir`: a folder of pack folders (a Workshop content folder works). A relative path is under `/data`. Needs `UPTIME_ENABLE_MODS`. |
+| `UPTIME_ENABLE_MODS` | | Passed as `--enable-mods`: pack manifest ids separated by commas, not Workshop item numbers or folder names. Needs `UPTIME_MODS_DIR`. |
+| `UPTIME_MOD_CONFIG` | | Passed as `--mod-config`: a folder holding `<mod id>.json` for each enabled pack with a config schema. A relative path is under `/data`. Needs both variables above. |
 | `UPTIME_QUERY_PORT` | `27016` | UDP. The port to publish. |
 | `UPTIME_STEAM_PORT` | `27015` | UDP, internal. Must differ from the query port. |
 | `UPTIME_PUBLIC_ADDR` | | `host:port` players should record when it differs from what the server sees (port forward, tunnel). Hostnames are resolved to IPv4 at start. |
