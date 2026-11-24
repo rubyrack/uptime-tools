@@ -183,6 +183,14 @@ if [ -z "$password" ] && [ -n "${UPTIME_PASSWORD_FILE:-}" ]; then
 fi
 [ -n "$password" ] || log "no UPTIME_PASSWORD: this is an open server, anyone with the address or the SteamID can join"
 
+# The run history key. The server checks its shape and refuses a partial one.
+uplink_key=${UPTIME_UPLINK_KEY:-}
+if [ -z "$uplink_key" ] && [ -n "${UPTIME_UPLINK_KEY_FILE:-}" ]; then
+    [ -r "$UPTIME_UPLINK_KEY_FILE" ] || fail "UPTIME_UPLINK_KEY_FILE is not readable: $UPTIME_UPLINK_KEY_FILE"
+    uplink_key=$(head -n 1 "$UPTIME_UPLINK_KEY_FILE")
+    [ -n "$uplink_key" ] || fail "UPTIME_UPLINK_KEY_FILE is empty: $UPTIME_UPLINK_KEY_FILE"
+fi
+
 mkdir -p "$data/worlds"
 if [ -n "${UPTIME_SERVER_DIR:-}" ]; then
     [ -d "$install" ] || fail "UPTIME_SERVER_DIR is not a directory in the container: $install (bind-mount the staged server there)"
@@ -257,6 +265,7 @@ set -- \
 
 http_port=${UPTIME_HTTP_PORT:-9875}
 [ -n "$password" ]                 && set -- --password "$password" "$@"
+[ -n "$uplink_key" ]               && set -- --uplink-key "$uplink_key" "$@"
 [ "$http_port" != "0" ]            && set -- --http-port "$http_port" "$@"
 [ -n "${UPTIME_MAX_PLAYERS:-}" ]   && set -- --max-players "$UPTIME_MAX_PLAYERS" "$@"
 [ -n "${UPTIME_AUTOSAVE_SECS:-}" ] && set -- --autosave-secs "$UPTIME_AUTOSAVE_SECS" "$@"

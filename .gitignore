@@ -2,3 +2,4 @@
 *.log
 /data/
 uptime_password.txt
+uptime_uplink_key.txt

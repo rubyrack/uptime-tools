@@ -1,0 +1,31 @@
+# Records the world's run history (beta). Needs Uptime 0.1.86 or newer.
+# Make a key at https://replay.playuptime.com/servers, then:
+# echo 'usk_...' > uptime_uplink_key.txt
+services:
+  uptime:
+    image: ghcr.io/rubyrack/uptime-server:latest
+    container_name: uptime
+    restart: unless-stopped
+    stop_grace_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    ports:
+      - "27016:27016/udp"
+    volumes:
+      - uptime-data:/data
+    environment:
+      UPTIME_NAME: My Datacenter
+      UPTIME_PASSWORD: change-me
+      UPTIME_UPLINK_KEY_FILE: /run/secrets/uptime_uplink_key
+    secrets:
+      - uptime_uplink_key
+
+secrets:
+  uptime_uplink_key:
+    file: ../uptime_uplink_key.txt
+
+volumes:
+  uptime-data:

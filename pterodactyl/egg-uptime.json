@@ -12,7 +12,7 @@
         "SteamCMD (Debian)": "ghcr.io/parkervcp/steamcmd:debian"
     },
     "file_denylist": [],
-    "startup": "./start_server.sh --world {{UPTIME_WORLD}} --scenario {{UPTIME_SCENARIO}} --name \"{{SERVER_NAME}}\" --password \"{{UPTIME_PASSWORD}}\" --max-players {{MAX_PLAYERS}} --autosave-secs {{AUTOSAVE_SECS}} --query-port {{SERVER_PORT}} --steam-port {{STEAM_PORT}} {{SITE_FLAG}} {{PUBLIC_ADDR_FLAG}} {{PUBLIC_FLAG}} {{HARD_FLAG}} {{MODS_DIR_FLAG}} {{ENABLE_MODS_FLAG}} {{MOD_CONFIG_FLAG}} {{EXTRA_ARGS}}",
+    "startup": "./start_server.sh --world {{UPTIME_WORLD}} --scenario {{UPTIME_SCENARIO}} --name \"{{SERVER_NAME}}\" --password \"{{UPTIME_PASSWORD}}\" --max-players {{MAX_PLAYERS}} --autosave-secs {{AUTOSAVE_SECS}} --query-port {{SERVER_PORT}} --steam-port {{STEAM_PORT}} {{SITE_FLAG}} {{PUBLIC_ADDR_FLAG}} {{PUBLIC_FLAG}} {{HARD_FLAG}} {{MODS_DIR_FLAG}} {{ENABLE_MODS_FLAG}} {{MOD_CONFIG_FLAG}} {{UPLINK_KEY_FLAG}} {{EXTRA_ARGS}}",
     "config": {
         "files": "{}",
         "startup": "{\"done\":\"game-server link up\"}",
@@ -165,6 +165,16 @@
             "user_viewable": true,
             "user_editable": true,
             "rules": "nullable|string|max:300|regex:/^(--mod-config [A-Za-z0-9_.\\/-]+)?$/",
+            "field_type": "text"
+        },
+        {
+            "name": "Run History Key",
+            "description": "--uplink-key KEY, with a key from https://replay.playuptime.com/servers: records the world's run history under that Steam account. Leave empty to record nothing. Uptime 0.1.86 or newer; older servers refuse to start with it.",
+            "env_variable": "UPLINK_KEY_FLAG",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|regex:/^(--uplink-key usk_[A-Za-z0-9_-]{43})?$/",
             "field_type": "text"
         },
         {

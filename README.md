@@ -46,6 +46,7 @@ For an entry that survives restarts, forward UDP 27016 and have players add `you
 | `UPTIME_MODS_DIR` | | Passed as `--mods-dir`: a folder of pack folders (a Workshop content folder works). A relative path is under `/data`. Needs `UPTIME_ENABLE_MODS`. |
 | `UPTIME_ENABLE_MODS` | | Passed as `--enable-mods`: pack manifest ids separated by commas, not Workshop item numbers or folder names. Needs `UPTIME_MODS_DIR`. |
 | `UPTIME_MOD_CONFIG` | | Passed as `--mod-config`: a folder holding `<mod id>.json` for each enabled pack with a config schema. A relative path is under `/data`. Needs both variables above. |
+| `UPTIME_UPLINK_KEY` | | Passed as `--uplink-key`: records the world's run history under your Steam account, see [Run history](#run-history). `UPTIME_UPLINK_KEY_FILE` reads it from a file. Unset records nothing. Needs Uptime 0.1.86 or newer; an older server refuses to start with it. |
 | `UPTIME_QUERY_PORT` | `27016` | UDP. The port to publish. |
 | `UPTIME_STEAM_PORT` | `27015` | UDP, internal. Must differ from the query port. |
 | `UPTIME_PUBLIC_ADDR` | | `host:port` players should record when it differs from what the server sees (port forward, tunnel). Hostnames are resolved to IPv4 at start. |
@@ -90,6 +91,20 @@ docker run --rm -v uptime-data:/data -v "$PWD":/backup alpine tar czf /backup/up
 ```
 
 Stop the container first for a consistent copy, or take the `.1` file, which is the previous completed save.
+
+## Run history
+
+Beta. The server can record its world so that you, and everyone who plays on it, can look back through the run in a browser at https://replay.playuptime.com
+
+1. Sign in there with Steam, open https://replay.playuptime.com/servers and make a key. It is shown once.
+2. Set `UPTIME_UPLINK_KEY` to the key, or put it in a file and set `UPTIME_UPLINK_KEY_FILE` to its path in the container. See `examples/run-history.yml`.
+3. Recreate the container. The log shows `[uplink] server recording run ...`.
+
+It records from the moment the server starts, whether or not anyone is playing, and files the run under your Steam account. The run includes the Steam ID of every player who joins, and each of them can open it with their own account. Only you can delete it, at https://replay.playuptime.com/data
+
+Use one key per server. To stop recording, unset the variable and recreate the container. Revoking a key on the site refuses the server's next sign-in, so a server that is already running can record for up to a day longer.
+
+Treat the key like a password: anyone who has it can record runs under your account. The container passes it to the server as an argument, as it does the join password, so it is visible in the container's process list.
 
 ## Metrics and dashboards
 
@@ -157,7 +172,7 @@ docker run -d --platform linux/amd64 --name uptime \
 
 ## Pterodactyl
 
-`pterodactyl/egg-uptime.json`, PTDL_v2, Linux x86_64. It runs on the community SteamCMD image `ghcr.io/parkervcp/steamcmd:debian`, not on the image above: Wings owns the server directory and the uid it runs as, and this image is built for `docker run`. One allocation: the query port. The egg's installer downloads the server into the server volume; on every start the SteamCMD image updates app 5053430 when `AUTO_UPDATE` is 1, then runs the startup line, which is the depot's `start_server.sh`. Stop sends SIGINT and the server saves before exiting.
+`pterodactyl/egg-uptime.json`, PTDL_v2, Linux x86_64. It runs on the community SteamCMD image `ghcr.io/parkervcp/steamcmd:debian`, not on the image above: Wings owns the server directory and the uid it runs as, and this image is built for `docker run`. One allocation: the query port. The egg's installer downloads the server into the server volume; on every start the SteamCMD image updates app 5053430 when `AUTO_UPDATE` is 1, then runs the startup line, which is the depot's `start_server.sh`. Stop sends SIGINT and the server saves before exiting. The **Run History Key** variable takes `--uplink-key` and the key, see [Run history](#run-history); the panel's startup line shows it.
 
 ## Building
 

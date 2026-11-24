@@ -25,6 +25,7 @@ services:
       UPTIME_HARD: "0"
       UPTIME_PUBLIC: "0"
       # UPTIME_SEED: "12345"
+      # UPTIME_UPLINK_KEY: usk_...         # run history key from https://replay.playuptime.com/servers
       UPTIME_QUERY_PORT: "27016"
       UPTIME_STEAM_PORT: "27015"
       # UPTIME_PUBLIC_ADDR: 203.0.113.7:27020

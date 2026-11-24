@@ -24,7 +24,7 @@ body:
     id: config
     attributes:
       label: Configuration
-      description: Your compose file or docker run line, with the password removed.
+      description: Your compose file or docker run line, with the password and the run history key removed.
       render: yaml
     validations:
       required: true
